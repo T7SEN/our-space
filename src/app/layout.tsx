@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { SerwistProvider } from "./serwist";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
@@ -84,9 +85,11 @@ export default function RootLayout({
             forcedTheme="dark"
             disableTransitionOnChange
           >
-            {children}
-            <SpeedInsights />
-            <Analytics />
+            <TooltipProvider>
+              {children}
+              <SpeedInsights />
+              <Analytics />
+            </TooltipProvider>
           </ThemeProvider>
         </SerwistProvider>
       </body>

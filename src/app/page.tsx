@@ -10,6 +10,7 @@ import { WeatherCard } from "@/components/dashboard/weather-card";
 import { QuoteCard } from "@/components/dashboard/quote-card";
 import { TimezoneCard } from "@/components/dashboard/timezone-card";
 import { DistanceCard } from "@/components/dashboard/distance-card";
+import { BirthdayCard } from "@/components/dashboard/birthday-card";
 
 // 1. Explicitly type the orchestration timing
 const containerVariants: Variants = {
@@ -117,6 +118,12 @@ export default function Dashboard() {
             <motion.div variants={itemVariants} className="h-full">
               <TimezoneCard now={now} />
             </motion.div>
+
+            {/* Added the new BirthdayCard here */}
+            <motion.div variants={itemVariants} className="h-full">
+              <BirthdayCard now={now} />
+            </motion.div>
+
             <motion.div variants={itemVariants} className="h-full">
               <DistanceCard />
             </motion.div>

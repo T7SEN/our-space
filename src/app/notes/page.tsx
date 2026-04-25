@@ -43,8 +43,8 @@ export default function NotesPage() {
   return (
     <div className="relative min-h-screen bg-background p-6 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[-10%] top-[-10%] h-[500px] w-[500px] rounded-full bg-primary/5 blur-[150px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-[150px]" />
+        <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-blue-500/5 blur-[150px]" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-3xl space-y-12 pt-4">
@@ -72,7 +72,7 @@ export default function NotesPage() {
             required
             disabled={isPending}
             className={cn(
-              "min-h-[150px] w-full resize-none bg-transparent p-6 text-lg outline-none",
+              "min-h-37.5 w-full resize-none bg-transparent p-6 text-lg outline-none",
               "font-serif leading-relaxed placeholder:text-muted-foreground/50",
             )}
           />
@@ -112,7 +112,7 @@ export default function NotesPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
-                className="relative pl-8 before:absolute before:left-[11px] before:top-2 before:h-full before:w-[2px] before:bg-border/50 last:before:hidden"
+                className="relative pl-8 before:absolute before:left-2.75 before:top-2 before:h-full before:w-0.5 before:bg-border/50 last:before:hidden"
               >
                 <div className="absolute left-0 top-1.5 h-6 w-6 rounded-full border-4 border-background bg-primary shadow-sm" />
 

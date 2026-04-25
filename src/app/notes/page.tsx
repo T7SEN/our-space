@@ -25,7 +25,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     if (state?.success) {
-      formRef.current?.reset();
+      (formRef.current as unknown as { reset: () => void })?.reset();
       getNotes().then(setNotes);
     }
   }, [state]);

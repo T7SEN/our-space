@@ -6,39 +6,56 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { START_DATE } from "@/lib/constants";
 
-type TimeUnitKey = "days" | "months" | "weeks" | "hours" | "mins" | "secs";
+type TimeUnitKey = "years" | "months" | "days" | "hours" | "mins" | "secs";
 
 export function CounterCard({ now }: { now: Date }) {
   const [activeUnit, setActiveUnit] = useState<TimeUnitKey>("days");
 
   const diff = now.getTime() - START_DATE.getTime();
 
-  // 1. Calculate Absolute Totals
+  // 1. Calculate Absolute Totals (for the massive hero text)
   const totalSeconds = Math.floor(diff / 1000);
   const totalMinutes = Math.floor(diff / (1000 * 60));
   const totalHours = Math.floor(diff / (1000 * 60 * 60));
   const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const totalWeeks = Math.floor(totalDays / 7);
 
-  let tempDateTotal = new Date(START_DATE);
+  let tempDateTotalMonths = new Date(START_DATE);
   let totalMonths = 0;
-
   while (true) {
-    const nextMonth = new Date(tempDateTotal);
+    const nextMonth = new Date(tempDateTotalMonths);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     if (nextMonth > now) break;
-    tempDateTotal = nextMonth;
+    tempDateTotalMonths = nextMonth;
     totalMonths++;
   }
 
-  // 2. Calculate Modular Breakdown
+  let tempDateTotalYears = new Date(START_DATE);
+  let totalYears = 0;
+  while (true) {
+    const nextYear = new Date(tempDateTotalYears);
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    if (nextYear > now) break;
+    tempDateTotalYears = nextYear;
+    totalYears++;
+  }
+
+  // 2. Calculate Modular Breakdown (for the bottom grid)
   const seconds = Math.floor((diff / 1000) % 60);
   const minutes = Math.floor((diff / (1000 * 60)) % 60);
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
 
   let tempDateBreakdown = new Date(START_DATE);
-  let breakdownMonths = 0;
 
+  let breakdownYears = 0;
+  while (true) {
+    const nextYear = new Date(tempDateBreakdown);
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    if (nextYear > now) break;
+    tempDateBreakdown = nextYear;
+    breakdownYears++;
+  }
+
+  let breakdownMonths = 0;
   while (true) {
     const nextMonth = new Date(tempDateBreakdown);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -49,23 +66,21 @@ export function CounterCard({ now }: { now: Date }) {
 
   const remainingDiff = now.getTime() - tempDateBreakdown.getTime();
   const breakdownDays = Math.floor(remainingDiff / (1000 * 60 * 60 * 24));
-  const breakdownWeeks = Math.floor(breakdownDays / 7);
-  const remainingDays = breakdownDays % 7;
 
   // 3. Map State to Values
   const activeValueMap: Record<TimeUnitKey, number> = {
-    days: totalDays,
+    years: totalYears,
     months: totalMonths,
-    weeks: totalWeeks,
+    days: totalDays,
     hours: totalHours,
     mins: totalMinutes,
     secs: totalSeconds,
   };
 
   const activeLabelMap: Record<TimeUnitKey, string> = {
-    days: "days",
+    years: "years",
     months: "months",
-    weeks: "weeks",
+    days: "days",
     hours: "hours",
     mins: "minutes",
     secs: "seconds",
@@ -89,7 +104,7 @@ export function CounterCard({ now }: { now: Date }) {
       </div>
 
       <div className="relative z-10 mb-16">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="mb-6 flex items-center gap-3">
           <Heart className="h-5 w-5 text-primary" fill="currentColor" />
           <h2
             className={cn(
@@ -145,7 +160,6 @@ export function CounterCard({ now }: { now: Date }) {
         </div>
       </div>
 
-      {/* FIXED: Added gap-2 and md:gap-4 to explicitly space columns */}
       <div
         className={cn(
           "relative z-10 grid grid-cols-3 gap-2 gap-y-8",
@@ -153,20 +167,20 @@ export function CounterCard({ now }: { now: Date }) {
         )}
       >
         <TimeUnit
+          label="Years"
+          value={breakdownYears}
+          isActive={activeUnit === "years"}
+          onClick={() => setActiveUnit("years")}
+        />
+        <TimeUnit
           label="Months"
           value={breakdownMonths}
           isActive={activeUnit === "months"}
           onClick={() => setActiveUnit("months")}
         />
         <TimeUnit
-          label="Weeks"
-          value={breakdownWeeks}
-          isActive={activeUnit === "weeks"}
-          onClick={() => setActiveUnit("weeks")}
-        />
-        <TimeUnit
           label="Days"
-          value={remainingDays}
+          value={breakdownDays}
           isActive={activeUnit === "days"}
           onClick={() => setActiveUnit("days")}
         />
@@ -217,7 +231,6 @@ function TimeUnit({
         !isActive && "hover:-translate-y-1",
       )}
     >
-      {/* FIXED: Background perfectly contained by inset-0 */}
       {isActive && (
         <motion.div
           layoutId="active-indicator"

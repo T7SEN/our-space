@@ -24,7 +24,6 @@ import {
   PenLine,
   Copy,
   CheckCheck,
-  Sparkles,
   Heart,
   Pin,
   PinOff,
@@ -120,7 +119,6 @@ export default function NotesPage() {
   } | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [composeContent, setComposeContent] = useState("");
-  const [newerNotesAvailable, setNewerNotesAvailable] = useState(false);
   const [justConfirmedId, setJustConfirmedId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -133,6 +131,27 @@ export default function NotesPage() {
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<Note[]>([]);
   const initialTimestampRef = useRef<number | null>(null);
+
+  const silentRefresh = useCallback(async () => {
+    try {
+      const [{ notes: refreshed, hasMore: more }, count, counts] =
+        await Promise.all([
+          getNotes(0),
+          getNoteCount(),
+          getNoteCountByAuthor(),
+        ]);
+      setNotes((prev) => {
+        const latestKnown = prev.length > 0 ? prev[0].createdAt : 0;
+        const incoming = refreshed.filter((n) => n.createdAt > latestKnown);
+        return incoming.length > 0 ? [...incoming, ...prev] : prev;
+      });
+      setHasMore(more);
+      setNoteCount(count);
+      setAuthorCounts(counts);
+    } catch (err) {
+      console.error("[notes] Silent refresh failed:", err);
+    }
+  }, []);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -180,7 +199,7 @@ export default function NotesPage() {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
-  
+
   // ── SSE real-time stream (replaces 30s polling) ──
   useEffect(() => {
     let eventSource: EventSource | null = null;
@@ -196,15 +215,7 @@ export default function NotesPage() {
         if (data.type === "init") {
           initialTimestampRef.current = data.timestamp ?? null;
         } else if (data.type === "update") {
-          const current = notesRef.current;
-          const latestKnown = current.length > 0 ? current[0].createdAt : null;
-          if (
-            data.timestamp !== undefined &&
-            latestKnown !== null &&
-            data.timestamp > latestKnown
-          ) {
-            setNewerNotesAvailable(true);
-          }
+          void silentRefresh();
         }
       };
 
@@ -216,7 +227,7 @@ export default function NotesPage() {
 
     connect();
     return () => eventSource?.close();
-  }, []);
+  }, [silentRefresh]);
 
   // ── Share target prefill ──
   useEffect(() => {
@@ -257,7 +268,6 @@ export default function NotesPage() {
         setPage(0);
         setOptimisticNotes([]);
         setComposeContent("");
-        setNewerNotesAvailable(false);
         setNoteCount(count);
         setAuthorCounts(counts);
         const confirmedId = refreshed[0]?.id ?? null;
@@ -336,7 +346,6 @@ export default function NotesPage() {
     setPage(0);
     setNoteCount(count);
     setAuthorCounts(counts);
-    setNewerNotesAvailable(false);
     setIsRefreshing(false);
   };
 
@@ -480,32 +489,6 @@ export default function NotesPage() {
               <WifiOff className="h-3 w-3" />
               Offline — notes will sync when reconnected
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* New notes banner */}
-      <AnimatePresence>
-        {newerNotesAvailable && (
-          <motion.div
-            initial={{ opacity: 0, y: -16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
-            className="fixed left-1/2 top-4 z-50 -translate-x-1/2"
-          >
-            <button
-              onClick={handleRefresh}
-              className={cn(
-                "flex items-center gap-2 rounded-full border border-primary/30",
-                "bg-card/90 px-4 py-2 text-xs font-bold uppercase tracking-wider",
-                "text-primary shadow-lg shadow-black/30 backdrop-blur-md",
-                "transition-all hover:bg-primary/10",
-              )}
-            >
-              <Sparkles className="h-3 w-3" />
-              New notes — tap to refresh
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

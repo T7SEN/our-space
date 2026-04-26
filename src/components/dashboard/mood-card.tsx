@@ -63,6 +63,7 @@ export function MoodCard() {
     return "idle";
   }, []);
 
+  // ── Initial load ──
   useEffect(() => {
     getTodayMoods().then((data) => {
       setMoodData(data);
@@ -70,9 +71,28 @@ export function MoodCard() {
     });
   }, [deriveCardState]);
 
+  // ── Real-time polling — checks every 15s for partner mood updates ──
+  // Stops polling once both moods are in (hug-sent is the terminal state).
+  useEffect(() => {
+    const poll = () => {
+      // Don't poll if we already have both moods — nothing more to wait for
+      if (cardState === "hug-sent") return;
+
+      getTodayMoods()
+        .then((data) => {
+          setMoodData(data);
+          setCardState(deriveCardState(data));
+        })
+        .catch(console.error);
+    };
+
+    const id = setInterval(poll, 15_000);
+    return () => clearInterval(id);
+  }, [cardState, deriveCardState]);
+
   const handleSelectEmoji = async (emoji: string) => {
     if (isSubmitting || cardState !== "idle") return;
-    vibrate(8);
+    vibrate(50);
     setIsSubmitting(true);
     setError(null);
 
@@ -91,7 +111,7 @@ export function MoodCard() {
 
   const handleSendHug = async () => {
     if (isSendingHug || cardState !== "both-submitted") return;
-    vibrate([10, 60, 10, 60, 40]);
+    vibrate([50, 60, 50, 60, 100]);
     setIsSendingHug(true);
     setError(null);
 

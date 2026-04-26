@@ -49,6 +49,17 @@ async function sendPushToUser(
   toAuthor: "T7SEN" | "Besho",
   payload: { title: string; body: string; url: string },
 ): Promise<void> {
+  if (
+    !process.env.VAPID_EMAIL ||
+    !process.env.VAPID_PUBLIC_KEY ||
+    !process.env.VAPID_PRIVATE_KEY
+  ) {
+    console.error(
+      "[push] Missing VAPID env vars — set VAPID_EMAIL, VAPID_PUBLIC_KEY, " +
+        "and VAPID_PRIVATE_KEY in Vercel project settings.",
+    );
+    return;
+  }
   try {
     const subscriptionStr = await redis.get<string>(
       `push:subscription:${toAuthor}`,
@@ -241,11 +252,15 @@ export async function saveNote(prevState: unknown, formData: FormData) {
 
     // Fire-and-forget push to the other user
     const other = author === "T7SEN" ? "Besho" : "T7SEN";
-    sendPushToUser(other, {
-      title: `${author} wrote a note`,
-      body: newNote.content.slice(0, 100),
-      url: "/notes",
-    }).catch(console.error);
+    try {
+      await sendPushToUser(other, {
+        title: `${author} wrote a note`,
+        body: newNote.content.slice(0, 100),
+        url: "/notes",
+      });
+    } catch (pushError) {
+      console.error("[push] Failed to notify partner:", pushError);
+    }
 
     return { success: true };
   } catch (error) {

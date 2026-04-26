@@ -154,8 +154,8 @@ export async function sendHug(): Promise<{
 
 async function sendHugPush(to: string, from: string): Promise<void> {
   try {
-    const subscriptionStr = await redis.get<string>(`push:subscription:${to}`);
-    if (!subscriptionStr) return;
+    const subscription = await redis.get(`push:subscription:${to}`);
+    if (!subscription) return;
 
     const webpush = (await import("web-push")).default;
     webpush.setVapidDetails(
@@ -165,7 +165,7 @@ async function sendHugPush(to: string, from: string): Promise<void> {
     );
 
     await webpush.sendNotification(
-      JSON.parse(subscriptionStr),
+      subscription as Parameters<typeof webpush.sendNotification>[0],
       JSON.stringify({
         title: "💝 Virtual Hug!",
         body: `${from} sent you a hug`,

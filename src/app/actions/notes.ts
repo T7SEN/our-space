@@ -61,10 +61,8 @@ async function sendPushToUser(
     return;
   }
   try {
-    const subscriptionStr = await redis.get<string>(
-      `push:subscription:${toAuthor}`,
-    );
-    if (!subscriptionStr) return;
+    const subscription = await redis.get(`push:subscription:${toAuthor}`);
+    if (!subscription) return;
 
     const webpush = (await import("web-push")).default;
     webpush.setVapidDetails(
@@ -74,7 +72,7 @@ async function sendPushToUser(
     );
 
     await webpush.sendNotification(
-      JSON.parse(subscriptionStr),
+      subscription as Parameters<typeof webpush.sendNotification>[0],
       JSON.stringify(payload),
     );
   } catch (error) {
@@ -113,7 +111,7 @@ async function migrateLegacyNotes(): Promise<void> {
   console.log(`[notes] Migrated ${legacyNotes.length} legacy notes.`);
 }
 
-// ─── Author count initialisation ─────────────────────────────────────────────
+// ─── Author count initialization ─────────────────────────────────────────────
 // Runs once to back-fill counts for notes written before this feature.
 
 async function ensureAuthorCountsInitialized(): Promise<void> {

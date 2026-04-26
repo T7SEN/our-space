@@ -10,6 +10,7 @@ import { DistanceCard } from "@/components/dashboard/distance-card";
 import { NotebookCard } from "@/components/dashboard/notebook-card";
 import { NextVisitCard } from "@/components/dashboard/next-visit-card";
 import { MoonPhaseCard } from "@/components/dashboard/moon-phase-card";
+import { MoodCard } from "@/components/dashboard/mood-card";
 import { Header } from "@/components/dashboard/header";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { getCurrentAuthor } from "@/app/actions/auth";
@@ -17,18 +18,15 @@ import { getCurrentAuthor } from "@/app/actions/auth";
 function DashboardSkeleton() {
   return (
     <div className="grid animate-pulse grid-cols-1 gap-6 md:grid-cols-12">
-      {/* Counter */}
       <div className="h-72 rounded-3xl bg-muted/20 md:col-span-12" />
-      {/* Row 2 */}
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-6" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-6" />
-      {/* Row 3 */}
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
-      {/* Sidebar */}
-      <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
-      <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
+      <div className="h-64 rounded-3xl bg-muted/20 md:col-span-4" />
+      <div className="h-64 rounded-3xl bg-muted/20 md:col-span-4" />
+      <div className="h-64 rounded-3xl bg-muted/20 md:col-span-4" />
     </div>
   );
 }
@@ -50,7 +48,6 @@ export default function DashboardPage() {
 
   return (
     <div className="relative min-h-screen bg-background p-6 md:p-12">
-      {/* Ambient glows */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/8 blur-[160px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-blue-500/5 blur-[160px]" />
@@ -63,7 +60,7 @@ export default function DashboardPage() {
           <DashboardSkeleton />
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-            {/* Full-width counter */}
+            {/* Counter — full width */}
             <div className="md:col-span-12">
               <CounterCard now={now} />
             </div>
@@ -100,6 +97,11 @@ export default function DashboardPage() {
             </div>
             <div className="md:col-span-4">
               <MoonPhaseCard now={now} />
+            </div>
+
+            {/* Mood check-in — full width on mobile, 6 cols on desktop */}
+            <div className="md:col-span-6">
+              <MoodCard />
             </div>
           </div>
         )}

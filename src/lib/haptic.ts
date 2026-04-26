@@ -10,6 +10,11 @@ export function vibrate(pattern: number | number[] = 8) {
   };
 
   if (win.navigator?.vibrate) {
-    win.navigator.vibrate(pattern);
+    // Vibration API unit is milliseconds. The human sensory threshold for a
+    // felt vibration is ~50ms — scalar values below that are imperceptible.
+    // Array patterns (rhythms) are left untouched.
+    const corrected =
+      typeof pattern === "number" ? Math.max(pattern, 100) : pattern;
+    win.navigator.vibrate(corrected);
   }
 }

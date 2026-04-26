@@ -29,6 +29,8 @@ import {
   Pin,
   PinOff,
   Search,
+  WifiOff,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -36,13 +38,18 @@ import {
   saveNote,
   editNote,
   getCurrentAuthor,
-  getLatestNoteTimestamp,
   getNoteCount,
   getNoteCountByAuthor,
   reactToNote,
   togglePinNote,
   type Note,
 } from "@/app/actions/notes";
+import {
+  storePendingNote,
+  getPendingNotes,
+  removePendingNote,
+  type PendingNote,
+} from "@/lib/offline-notes";
 import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
 import { START_DATE } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -117,12 +124,15 @@ export default function NotesPage() {
   const [justConfirmedId, setJustConfirmedId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [offlineNotes, setOfflineNotes] = useState<PendingNote[]>([]);
+  const [isOffline, setIsOffline] = useState(false);
 
   const charCount = composeContent.length;
   const [state, action, isPending] = useActionState(saveNote, null);
   const formRef = useRef<HTMLFormElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<Note[]>([]);
+  const initialTimestampRef = useRef<number | null>(null);
 
   useEffect(() => {
     notesRef.current = notes;
@@ -135,14 +145,18 @@ export default function NotesPage() {
       getCurrentAuthor(),
       getNoteCount(),
       getNoteCountByAuthor(),
-    ]).then(([{ notes: initial, hasMore: more }, author, count, counts]) => {
-      setNotes(initial);
-      setHasMore(more);
-      setCurrentAuthor(author);
-      setNoteCount(count);
-      setAuthorCounts(counts);
-      setIsLoading(false);
-    });
+      getPendingNotes(),
+    ]).then(
+      ([{ notes: initial, hasMore: more }, author, count, counts, pending]) => {
+        setNotes(initial);
+        setHasMore(more);
+        setCurrentAuthor(author);
+        setNoteCount(count);
+        setAuthorCounts(counts);
+        setOfflineNotes(pending);
+        setIsLoading(false);
+      },
+    );
   }, []);
 
   // ── Scroll to top visibility ──
@@ -152,18 +166,56 @@ export default function NotesPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // ── 30s polling ──
+  // ── Network status ──
   useEffect(() => {
-    const poll = async () => {
-      if (document.visibilityState === "hidden") return;
-      const latest = await getLatestNoteTimestamp();
-      const current = notesRef.current;
-      if (latest && current.length > 0 && latest > current[0].createdAt) {
-        setNewerNotesAvailable(true);
-      }
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    setTimeout(() => {
+      setIsOffline(!navigator.onLine);
+    }, 0);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
-    const id = setInterval(poll, 30_000);
-    return () => clearInterval(id);
+  }, []);
+  
+  // ── SSE real-time stream (replaces 30s polling) ──
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+
+    const connect = () => {
+      eventSource = new EventSource("/api/notes/stream");
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data as string) as {
+          type: string;
+          timestamp?: number;
+        };
+        if (data.type === "init") {
+          initialTimestampRef.current = data.timestamp ?? null;
+        } else if (data.type === "update") {
+          const current = notesRef.current;
+          const latestKnown = current.length > 0 ? current[0].createdAt : null;
+          if (
+            data.timestamp !== undefined &&
+            latestKnown !== null &&
+            data.timestamp > latestKnown
+          ) {
+            setNewerNotesAvailable(true);
+          }
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource?.close();
+        setTimeout(connect, 5_000);
+      };
+    };
+
+    connect();
+    return () => eventSource?.close();
   }, []);
 
   // ── Share target prefill ──
@@ -229,6 +281,49 @@ export default function NotesPage() {
       },
       ...prev,
     ]);
+  }, [composeContent, currentAuthor]);
+
+  // ── Offline submit ──
+  const handleOfflineSubmit = useCallback(async () => {
+    const content = composeContent.trim();
+    if (!content || !currentAuthor) return;
+    vibrate(8);
+    const id = await storePendingNote(content);
+    const pending: PendingNote = { id, content, createdAt: Date.now() };
+    setOfflineNotes((prev) => [pending, ...prev]);
+    setComposeContent("");
+    if (composeRef.current) (composeRef.current as any).style.height = "auto";
+
+    // Register background sync; fall back to online-event listener on Safari
+    if ("serviceWorker" in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if ("sync" in reg) {
+          await (reg as any).sync.register("sync-notes");
+        } else {
+          const onOnline = async () => {
+            window.removeEventListener("online", onOnline);
+            const pending2 = await getPendingNotes();
+            for (const note of pending2) {
+              try {
+                const res = await fetch("/api/notes/sync", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(note),
+                  credentials: "same-origin",
+                });
+                if (res.ok) await removePendingNote(note.id);
+              } catch {
+                /* will retry on next online event */
+              }
+            }
+          };
+          window.addEventListener("online", onOnline);
+        }
+      } catch (err) {
+        console.warn("[notes] Sync registration failed:", err);
+      }
+    }
   }, [composeContent, currentAuthor]);
 
   // ── Refresh ──
@@ -372,6 +467,23 @@ export default function NotesPage() {
         )}
       </AnimatePresence>
 
+      {/* Offline banner */}
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed left-1/2 top-4 z-50 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-2 rounded-full border border-yellow-500/30 bg-card/90 px-4 py-2 text-xs font-bold uppercase tracking-wider text-yellow-500/80 shadow-lg backdrop-blur-md">
+              <WifiOff className="h-3 w-3" />
+              Offline — notes will sync when reconnected
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* New notes banner */}
       <AnimatePresence>
         {newerNotesAvailable && (
@@ -449,7 +561,14 @@ export default function NotesPage() {
         <form
           ref={formRef}
           action={action}
-          onSubmit={handleFormSubmit}
+          onSubmit={(e) => {
+            if (!navigator.onLine) {
+              e.preventDefault();
+              handleOfflineSubmit();
+              return;
+            }
+            handleFormSubmit();
+          }}
           className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-2 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all focus-within:border-primary/30 focus-within:bg-card/60"
         >
           <textarea
@@ -535,6 +654,11 @@ export default function NotesPage() {
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isOffline ? (
+                  <>
+                    Queue
+                    <Clock className="ml-1.5 h-3.5 w-3.5" />
+                  </>
                 ) : (
                   <>
                     Save
@@ -549,6 +673,37 @@ export default function NotesPage() {
             ⌘ + Enter to save
           </p>
         </form>
+
+        {/* Offline pending notes */}
+        <AnimatePresence>
+          {offlineNotes.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-2"
+            >
+              <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-yellow-500/60">
+                <Clock className="h-3 w-3" />
+                {offlineNotes.length} note{offlineNotes.length > 1 ? "s" : ""}{" "}
+                pending sync
+              </p>
+              {offlineNotes.map((pn) => (
+                <div
+                  key={pn.id}
+                  className="rounded-2xl border border-yellow-500/10 bg-yellow-500/5 px-5 py-4"
+                >
+                  <p className="font-serif text-sm leading-relaxed text-foreground/60">
+                    {pn.content}
+                  </p>
+                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-yellow-500/40">
+                    Written offline · will sync automatically
+                  </p>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Filter + Search */}
         {!isLoading && (

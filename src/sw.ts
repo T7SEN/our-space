@@ -13,6 +13,95 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+// ── Background Sync type — not yet in standard lib ────────────────────────────
+interface SyncEvent extends ExtendableEvent {
+  readonly tag: string;
+}
+
+// ── IndexedDB helpers (service worker context) ────────────────────────────────
+const DB_NAME = "our-space-offline";
+const STORE_NAME = "pending-notes";
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const req = self.indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE_NAME, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllPending(
+  db: IDBDatabase,
+): Promise<{ id: string; content: string; createdAt: number }[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).getAll();
+    req.onsuccess = () =>
+      resolve(
+        req.result as { id: string; content: string; createdAt: number }[],
+      );
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deletePending(db: IDBDatabase, id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const req = tx.objectStore(STORE_NAME).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ── Sync handler ──────────────────────────────────────────────────────────────
+
+async function syncPendingNotes(): Promise<void> {
+  let db: IDBDatabase;
+  try {
+    db = await openDB();
+  } catch (err) {
+    console.error("[sw/sync] Failed to open IndexedDB:", err);
+    return;
+  }
+
+  const pending = await getAllPending(db);
+  if (!pending.length) return;
+
+  for (const note of pending) {
+    try {
+      const response = await fetch("/api/notes/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: note.id,
+          content: note.content,
+          createdAt: note.createdAt,
+        }),
+        credentials: "same-origin",
+      });
+
+      if (response.ok) {
+        await deletePending(db, note.id);
+        console.log("[sw/sync] Synced offline note:", note.id);
+      } else {
+        console.warn(
+          "[sw/sync] Server rejected note:",
+          note.id,
+          response.status,
+        );
+      }
+    } catch (err) {
+      console.error("[sw/sync] Network error for note:", note.id, err);
+      // Leave in IndexedDB — will retry on next sync event
+    }
+  }
+}
+
+// ── Serwist ───────────────────────────────────────────────────────────────────
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -32,6 +121,15 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ── Background Sync ───────────────────────────────────────────────────────────
+
+self.addEventListener("sync", (event) => {
+  const syncEvent = event as unknown as SyncEvent;
+  if (syncEvent.tag === "sync-notes") {
+    syncEvent.waitUntil(syncPendingNotes());
+  }
+});
 
 // ── Push notifications ────────────────────────────────────────────────────────
 
@@ -61,7 +159,6 @@ self.addEventListener("notificationclick", (event) => {
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Focus existing window if available
         for (const client of clientList) {
           if (client.url.includes(url) && "focus" in client) {
             return (client as WindowClient).focus();

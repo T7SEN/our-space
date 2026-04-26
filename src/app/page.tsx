@@ -98,6 +98,17 @@ export default function DashboardPage() {
             <div className="md:col-span-4">
               <MoonPhaseCard now={now} />
             </div>
+            <button
+              onClick={() => {
+                const result = (navigator as any).vibrate?.(500);
+                alert(
+                  `vibrate: ${typeof (navigator as any).vibrate} → ${result}`,
+                );
+              }}
+              className="fixed bottom-24 right-4 z-50 rounded-full bg-red-500 px-4 py-2 text-white text-xs font-bold"
+            >
+              Test Haptic
+            </button>
 
             {/* Mood check-in — full width on mobile, 6 cols on desktop */}
             <div className="md:col-span-6">

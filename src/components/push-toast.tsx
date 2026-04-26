@@ -40,7 +40,7 @@ export function PushToast() {
       setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
 
       // Haptic feedback
-      void vibrate(50, "medium");
+      void vibrate(50, "heavy");
 
       // Subtle notification sound via Web Audio API
       try {

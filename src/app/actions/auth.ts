@@ -2,7 +2,15 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { encrypt } from "@/lib/auth-utils";
+import { encrypt, decrypt } from "@/lib/auth-utils";
+
+export async function getCurrentAuthor(): Promise<"T7SEN" | "Besho" | null> {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("session")?.value;
+  if (!sessionCookie) return null;
+  const session = await decrypt(sessionCookie);
+  return session?.author ?? null;
+}
 
 export async function login(prevState: unknown, formData: FormData) {
   const passcode = formData.get("passcode");

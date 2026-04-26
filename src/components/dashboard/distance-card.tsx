@@ -3,12 +3,10 @@
 import { MapPin, Navigation2 } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { DISTANCE_KM, MY_LABEL, PARTNER_LABEL } from "@/lib/constants";
 
 export function DistanceCard() {
-  const km = 520;
-  const miles = Math.round(km * 0.621371);
-
-  // We define the path string once so both the lines and the dot use the exact same math
+  const miles = Math.round(DISTANCE_KM * 0.621371);
   const flightPath = "M 0 35 Q 50 5 100 35";
 
   return (
@@ -41,7 +39,7 @@ export function DistanceCard() {
             animate={{ opacity: 1, scale: 1 }}
             className="text-6xl font-black tracking-tighter"
           >
-            {km}
+            {DISTANCE_KM}
           </motion.span>
           <span className="text-xl font-bold text-muted-foreground">km</span>
         </div>
@@ -53,25 +51,21 @@ export function DistanceCard() {
       {/* Visual Connection Map */}
       <div className="relative mt-8 h-20 w-full rounded-2xl bg-black/20 p-4">
         <div className="flex h-full items-center justify-between px-2">
-          {/* Shorouk Point */}
+          {/* Origin point */}
           <div className="flex flex-col items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/50">
-              Shorouk
+              {MY_LABEL}
             </span>
           </div>
 
-          {/* Connection Arc */}
+          {/* Connection arc */}
           <div className="relative flex-1 px-4">
-            {/* FIXED: Added a stable viewBox (0 0 100 40) and moved the dot 
-						  inside the SVG to lock it mathematically to the path.
-						*/}
             <svg
               viewBox="0 0 100 40"
               className="h-12 w-full overflow-visible"
               preserveAspectRatio="none"
             >
-              {/* Background dashed path */}
               <motion.path
                 d={flightPath}
                 fill="none"
@@ -81,7 +75,6 @@ export function DistanceCard() {
                 className="text-primary/30"
                 vectorEffect="non-scaling-stroke"
               />
-              {/* Solid animated path drawing in */}
               <motion.path
                 d={flightPath}
                 fill="none"
@@ -94,9 +87,6 @@ export function DistanceCard() {
                 animate={{ pathLength: 1 }}
                 transition={{ duration: 2, ease: "easeOut" }}
               />
-              {/* The Indicator Dot. 
-							  Using native <animateMotion> binds it directly to the SVG curve.
-							*/}
               <circle
                 r="2.5"
                 fill="currentColor"
@@ -111,11 +101,11 @@ export function DistanceCard() {
             </svg>
           </div>
 
-          {/* Tabuk Point */}
+          {/* Destination point */}
           <div className="flex flex-col items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
             <span className="text-[10px] font-bold uppercase tracking-tight text-primary/50">
-              Tabuk
+              {PARTNER_LABEL}
             </span>
           </div>
         </div>

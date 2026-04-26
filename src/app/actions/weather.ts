@@ -1,6 +1,5 @@
 "use server";
 
-// Open-Meteo uses WMO Weather interpretation codes
 function getWeatherCondition(code: number): string {
   if (code === 0) return "Clear sky";
   if (code === 1 || code === 2 || code === 3) return "Partly cloudy";
@@ -22,12 +21,12 @@ export type WeatherData = {
 
 export type DualWeatherResponse = {
   myLocation: WeatherData;
-  tabuk: WeatherData; // Renamed from riyadh
+  tabuk: WeatherData;
+  /** True when the fetch failed — the card renders an error state instead */
+  error?: true;
 };
 
 export async function fetchRealWeather(): Promise<DualWeatherResponse> {
-  // My Location: Al Shorouk City, Egypt
-  // Partner Location: Tabuk, KSA
   const baseUrl = "https://api.open-meteo.com/v1/forecast";
   const params =
     "current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto";
@@ -37,11 +36,14 @@ export async function fetchRealWeather(): Promise<DualWeatherResponse> {
       fetch(`${baseUrl}?latitude=30.161472&longitude=31.635861&${params}`, {
         next: { revalidate: 1800 },
       }),
-      // Updated coordinates for Tabuk
       fetch(`${baseUrl}?latitude=28.3833&longitude=36.5833&${params}`, {
         next: { revalidate: 1800 },
       }),
     ]);
+
+    if (!myRes.ok || !tabukRes.ok) {
+      throw new Error("Open-Meteo returned a non-OK status");
+    }
 
     const myData = await myRes.json();
     const tabukData = await tabukRes.json();
@@ -63,13 +65,9 @@ export async function fetchRealWeather(): Promise<DualWeatherResponse> {
   } catch (error) {
     console.error("Failed to fetch weather:", error);
     return {
-      myLocation: {
-        temp: 25,
-        condition: "Data unavailable",
-        high: 25,
-        low: 25,
-      },
-      tabuk: { temp: 25, condition: "Data unavailable", high: 25, low: 25 },
+      myLocation: { temp: 0, condition: "Unavailable", high: 0, low: 0 },
+      tabuk: { temp: 0, condition: "Unavailable", high: 0, low: 0 },
+      error: true,
     };
   }
 }

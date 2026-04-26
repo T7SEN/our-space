@@ -1,28 +1,28 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Quote as QuoteIcon } from "lucide-react";
+import { Quote as QuoteIcon, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { fetchRandomQuote, type QuoteData } from "@/app/actions/quote";
 
 export function QuoteCard() {
   const [quoteData, setQuoteData] = useState<QuoteData | null>(null);
-
-  // Our persistent guard to prevent React Strict Mode double-fetching
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const hasFetched = useRef(false);
 
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-
-    async function getQuote() {
-      const data = await fetchRandomQuote();
-      setQuoteData(data);
-    }
-
-    getQuote();
+    fetchRandomQuote().then(setQuoteData);
   }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    const data = await fetchRandomQuote(true);
+    setQuoteData(data);
+    setIsRefreshing(false);
+  };
 
   return (
     <div
@@ -34,15 +34,28 @@ export function QuoteCard() {
       )}
     >
       <div className="relative z-10 flex-1 flex flex-col">
-        <QuoteIcon className="mb-4 h-6 w-6 text-primary/40" />
+        <div className="mb-4 flex items-center justify-between">
+          <QuoteIcon className="h-6 w-6 text-primary/40" />
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || !quoteData}
+            aria-label="Get a different quote"
+            className="rounded-full p-1.5 text-muted-foreground/30 transition-all hover:bg-primary/10 hover:text-primary disabled:opacity-30"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
+            />
+          </button>
+        </div>
 
         <AnimatePresence mode="wait">
           {quoteData ? (
             <motion.div
-              key="quote-text"
+              key={quoteData.text}
               initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
+              exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
               className="flex flex-col gap-3"
             >
               <p
@@ -58,12 +71,18 @@ export function QuoteCard() {
               </p>
             </motion.div>
           ) : (
-            <div key="quote-skeleton" className="space-y-3 py-2">
+            <motion.div
+              key="skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-3 py-2"
+            >
               <div className="h-4 w-full animate-pulse rounded bg-muted/50" />
               <div className="h-4 w-5/6 animate-pulse rounded bg-muted/50" />
               <div className="h-4 w-4/6 animate-pulse rounded bg-muted/50" />
               <div className="mt-4 h-3 w-1/3 animate-pulse rounded bg-primary/20" />
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

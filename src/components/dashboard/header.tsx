@@ -1,6 +1,12 @@
 import { MY_TZ } from "@/lib/constants";
+import { LogoutButton } from "@/components/dashboard/logout-button";
 
-export function Header({ now }: { now: Date }) {
+interface HeaderProps {
+  now: Date;
+  author: string | null;
+}
+
+export function Header({ now, author }: HeaderProps) {
   const hour = parseInt(
     now.toLocaleString("en-US", {
       timeZone: MY_TZ,
@@ -10,20 +16,22 @@ export function Header({ now }: { now: Date }) {
   );
 
   let greeting = "Good evening";
-  if (hour >= 5 && hour < 12) {
-    greeting = "Good morning";
-  } else if (hour >= 12 && hour < 18) {
-    greeting = "Good afternoon";
-  }
+  if (hour >= 5 && hour < 12) greeting = "Good morning";
+  else if (hour >= 12 && hour < 18) greeting = "Good afternoon";
+
+  const personalGreeting = author ? `${greeting}, ${author}` : greeting;
 
   return (
-    <header className="flex flex-col gap-2 pb-2">
-      <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-        {greeting}.
-      </h1>
-      <p className="text-lg font-medium text-muted-foreground">
-        Welcome back to your private space.
-      </p>
+    <header className="flex items-start justify-between pb-2">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+          {personalGreeting}.
+        </h1>
+        <p className="text-lg font-medium text-muted-foreground">
+          Welcome back to your private space.
+        </p>
+      </div>
+      <LogoutButton />
     </header>
   );
 }

@@ -5,15 +5,21 @@ export type QuoteData = {
   author: string;
 };
 
-export async function fetchRandomQuote(): Promise<QuoteData> {
+/**
+ * Fetches a quote from the cached JSON file.
+ *
+ * Default behavior: the same quote is shown all day, seeded by the current
+ * date (YYYYMMDD). Passing `forceRandom = true` bypasses this and returns a
+ * random quote — used by the manual refresh button in QuoteCard.
+ */
+export async function fetchRandomQuote(
+  forceRandom = false,
+): Promise<QuoteData> {
   try {
-    // Fetch a public, static JSON database of love quotes hosted on GitHub's Edge CDN.
-    // We cache the file on your server for 24 hours so that generating a random
-    // quote on page refresh is absolutely instantaneous.
     const res = await fetch(
       "https://raw.githubusercontent.com/btford/philosobot/master/quotes/love.json",
       {
-        next: { revalidate: 86400 }, // Cache for 24 hours
+        next: { revalidate: 86400 }, // Cache the JSON file for 24 hours
         signal: AbortSignal.timeout(5000),
       },
     );
@@ -25,26 +31,35 @@ export async function fetchRandomQuote(): Promise<QuoteData> {
     const json = await res.json();
 
     if (json.quotes && json.quotes.length > 0) {
-      const randomIndex = Math.floor(Math.random() * json.quotes.length);
-      const randomQuote = json.quotes[randomIndex];
+      let index: number;
 
-      // Intercept and replace HTML breaks with clean newline characters
-      const cleanText = randomQuote.quote.replace(/<br\s*\/?>/gi, "\n");
+      if (forceRandom) {
+        index = Math.floor(Math.random() * json.quotes.length);
+      } else {
+        // Deterministic daily seed: same quote for everyone on the same day
+        const today = new Date();
+        const seed =
+          today.getFullYear() * 10000 +
+          (today.getMonth() + 1) * 100 +
+          today.getDate();
+        index = seed % json.quotes.length;
+      }
+
+      const quote = json.quotes[index];
+      const cleanText = quote.quote.replace(/<br\s*\/?>/gi, "\n");
 
       return {
         text: cleanText,
-        author: randomQuote.author || "Unknown",
+        author: quote.author || "Unknown",
       };
     }
 
     throw new Error("JSON returned empty array");
   } catch (error) {
-    console.error("API Error:", error);
-
-    // If anything goes wrong, it prints exactly what happened to the UI
+    console.error("Quote API error:", error);
     return {
-      text: `System Error: ${error instanceof Error ? error.message : "Unknown connection error."}`,
-      author: "Debug Output",
+      text: `Could not load quote: ${error instanceof Error ? error.message : "Unknown error"}`,
+      author: "Error",
     };
   }
 }

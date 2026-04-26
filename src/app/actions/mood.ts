@@ -143,8 +143,8 @@ export async function sendHug(): Promise<{
 
     await redis.set(hugKey(today, author), "1", { ex: ttl });
 
-    // Fire-and-forget push to partner
-    sendHugPush(partner, author).catch(console.error);
+    // Await push — fire-and-forget gets killed on Vercel before completing
+    await sendHugPush(partner, author);
 
     return { success: true };
   } catch (error) {
@@ -154,16 +154,101 @@ export async function sendHug(): Promise<{
 }
 
 async function sendHugPush(to: string, from: string): Promise<void> {
-  try {
-    const subscription = await redis.get(`push:subscription:${to}`);
-    if (!subscription) return;
+  const payload = {
+    title: "💝 Virtual Hug!",
+    body: `${from} sent you a hug`,
+    url: "/dashboard",
+  };
 
+  // ── Presence check ──────────────────────────────────────────────────────
+  // "/dashboard" matches what usePresence() registers for the dashboard page
+  try {
     const currentPage = await redis.get<string>(`presence:${to}`);
-    if (currentPage === "/") {
+    if (currentPage === "/dashboard") {
       console.log(`[push] Skipping hug push — ${to} is on dashboard.`);
+      // Still write to history even if skipped
+      await pushNotificationToHistory(to, {
+        ...payload,
+        timestamp: Date.now(),
+      });
       return;
     }
+  } catch (err) {
+    console.warn("[push] Presence check failed:", err);
+  }
 
+  // ── Write to notification history ───────────────────────────────────────
+  try {
+    await pushNotificationToHistory(to, {
+      ...payload,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    console.error("[push] Failed to write hug notification history:", err);
+  }
+
+  // ── Determine if app is open ────────────────────────────────────────────
+  let currentPage: string | null = null;
+  try {
+    currentPage = await redis.get<string>(`presence:${to}`);
+  } catch {
+    /* proceed */
+  }
+  const isAppOpen = currentPage !== null;
+
+  // ── FCM (native Android) ────────────────────────────────────────────────
+  const fcmToken = await redis.get<string>(`push:fcm:${to}`);
+  if (fcmToken) {
+    try {
+      const { getApps, initializeApp, cert } =
+        await import("firebase-admin/app");
+      const { getMessaging } = await import("firebase-admin/messaging");
+
+      if (!getApps().length) {
+        initializeApp({
+          credential: cert({
+            projectId: process.env.FIREBASE_PROJECT_ID!,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
+          }),
+        });
+      }
+
+      await getMessaging().send({
+        token: fcmToken,
+        ...(isAppOpen
+          ? {
+              data: {
+                url: payload.url,
+                title: payload.title,
+                body: payload.body,
+              },
+            }
+          : {
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
+              data: { url: payload.url },
+              android: { priority: "high" },
+            }),
+      });
+
+      console.log(`[push] Hug FCM sent to ${to}.`);
+      return;
+    } catch (err) {
+      console.error("[push] Hug FCM failed, falling back to Web Push:", err);
+    }
+  }
+
+  // ── Web Push fallback (PWA) ─────────────────────────────────────────────
+  const subscription = await redis.get(`push:subscription:${to}`);
+  if (!subscription) {
+    console.log(`[push] No subscription for ${to}.`);
+    return;
+  }
+
+  try {
     const webpush = (await import("web-push")).default;
     webpush.setVapidDetails(
       process.env.VAPID_EMAIL!,
@@ -171,22 +256,13 @@ async function sendHugPush(to: string, from: string): Promise<void> {
       process.env.VAPID_PRIVATE_KEY!,
     );
 
-    await pushNotificationToHistory(to, {
-      title: "💝 Virtual Hug!",
-      body: `${from} sent you a hug`,
-      url: "/",
-      timestamp: Date.now(),
-    });
-
     await webpush.sendNotification(
       subscription as Parameters<typeof webpush.sendNotification>[0],
-      JSON.stringify({
-        title: "💝 Virtual Hug!",
-        body: `${from} sent you a hug`,
-        url: "/",
-      }),
+      JSON.stringify(payload),
     );
+
+    console.log(`[push] Hug Web Push sent to ${to}.`);
   } catch (error) {
-    console.error("[mood] Push failed:", error);
+    console.error("[mood] Web Push failed:", error);
   }
 }

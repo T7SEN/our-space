@@ -256,6 +256,11 @@ export async function saveNote(prevState: unknown, formData: FormData) {
         body: newNote.content.slice(0, 100),
         url: "/notes",
       });
+      console.log("[push] VAPID check:", {
+        email: process.env.VAPID_EMAIL,
+        publicKeyLength: process.env.VAPID_PUBLIC_KEY?.length,
+        privateKeyLength: process.env.VAPID_PRIVATE_KEY?.length,
+      });
     } catch (pushError) {
       console.error("[push] Failed to notify partner:", pushError);
     }

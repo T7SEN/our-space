@@ -14,7 +14,6 @@ import { MoodCard } from "@/components/dashboard/mood-card";
 import { Header } from "@/components/dashboard/header";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { getCurrentAuthor } from "@/app/actions/auth";
-import { useFCMRegistration } from "@/hooks/use-fcm-registration";
 import { usePresence } from "@/hooks/use-presence";
 
 function DashboardSkeleton() {
@@ -36,9 +35,6 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [now, setNow] = useState<Date | null>(null);
   const [currentAuthor, setCurrentAuthor] = useState<string | null>(null);
-
-  // Handle FCM registration with the current authenticated author
-  useFCMRegistration(currentAuthor);
 
   // Handle presence tracking
   usePresence("/dashboard", !!currentAuthor);

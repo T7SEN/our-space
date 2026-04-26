@@ -1,23 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dispatchPushToast } from "@/components/push-toast";
+import { getCurrentAuthor } from "@/app/actions/auth";
 
 /**
- * Registers the device for FCM push notifications.
- *
- * Guarantees:
- * - Only runs on Capacitor native platform
- * - Only runs after `author` is confirmed non-null (authenticated)
- * - Idempotent within a session
- * - Re-registers if author changes
- * - Cleans up all listeners on unmount
- * - Shows in-app toast for foreground notifications
- * - Navigates to the notification URL when toast or notification is tapped
+ * Registers FCM listeners once at the layout level so they persist
+ * across all page navigations. Previously this lived in the dashboard
+ * page, which meant listeners were torn down on navigation.
  */
-export function useFCMRegistration(author: string | null) {
+export function FCMProvider() {
+  const [author, setAuthor] = useState<string | null>(null);
   const registeredForAuthor = useRef<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    getCurrentAuthor().then(setAuthor);
+  }, []);
 
   useEffect(() => {
     if (!author) return;
@@ -41,7 +40,6 @@ export function useFCMRegistration(author: string | null) {
 
         if (cancelled) return;
 
-        // ── Permission ──────────────────────────────────────────────────
         let permStatus = await PushNotifications.checkPermissions();
         if (permStatus.receive === "prompt") {
           permStatus = await PushNotifications.requestPermissions();
@@ -53,10 +51,8 @@ export function useFCMRegistration(author: string | null) {
 
         if (cancelled) return;
 
-        // ── Remove stale listeners before adding fresh ones ─────────────
         await PushNotifications.removeAllListeners();
 
-        // ── Registration ────────────────────────────────────────────────
         const registrationListener = await PushNotifications.addListener(
           "registration",
           async (token) => {
@@ -91,9 +87,7 @@ export function useFCMRegistration(author: string | null) {
           },
         );
 
-        // ── Foreground notification — show in-app toast ─────────────────
-        // The OS notification is suppressed by the server (presence check).
-        // This listener fires when the app is open and a push arrives.
+        // Foreground notification — show in-app toast
         const foregroundListener = await PushNotifications.addListener(
           "pushNotificationReceived",
           (notification) => {
@@ -111,7 +105,7 @@ export function useFCMRegistration(author: string | null) {
           },
         );
 
-        // ── Notification tap — navigate to URL ──────────────────────────
+        // Notification tap — navigate to URL
         const actionListener = await PushNotifications.addListener(
           "pushNotificationActionPerformed",
           (action) => {
@@ -146,4 +140,6 @@ export function useFCMRegistration(author: string | null) {
       cleanupRef.current = null;
     };
   }, [author]);
+
+  return null;
 }

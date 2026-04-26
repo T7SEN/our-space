@@ -4,6 +4,7 @@ import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
 import { MY_TZ } from "@/lib/constants";
+import { pushNotificationToHistory } from "@/app/actions/notifications";
 
 export interface MoodData {
   myMood: string | null;
@@ -169,6 +170,13 @@ async function sendHugPush(to: string, from: string): Promise<void> {
       process.env.VAPID_PUBLIC_KEY!,
       process.env.VAPID_PRIVATE_KEY!,
     );
+
+    await pushNotificationToHistory(to, {
+      title: "💝 Virtual Hug!",
+      body: `${from} sent you a hug`,
+      url: "/",
+      timestamp: Date.now(),
+    });
 
     await webpush.sendNotification(
       subscription as Parameters<typeof webpush.sendNotification>[0],

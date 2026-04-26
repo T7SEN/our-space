@@ -24,7 +24,6 @@ import {
   PenLine,
   Copy,
   CheckCheck,
-  Heart,
   Pin,
   PinOff,
   Search,
@@ -39,7 +38,6 @@ import {
   getCurrentAuthor,
   getNoteCount,
   getNoteCountByAuthor,
-  reactToNote,
   togglePinNote,
   type Note,
 } from "@/app/actions/notes";
@@ -59,6 +57,7 @@ import {
 } from "@/components/ui/tooltip";
 import { vibrate } from "@/lib/haptic";
 import { usePresence } from "@/hooks/use-presence";
+import { NoteReactions } from "@/components/notes/note-reactions";
 
 declare let window: any;
 declare let document: any;
@@ -411,17 +410,14 @@ export default function NotesPage() {
     return result;
   };
 
-  // ── React ──
-  const handleReact = async (id: string) => {
-    void vibrate(50, "heavy");
-    const result = await reactToNote(id);
-    if (result.reactions !== undefined) {
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === id ? { ...n, reactions: result.reactions } : n,
-        ),
-      );
-    }
+  // ── Reactions change ──
+  const handleReactionsChange = (
+    id: string,
+    reactions: Record<string, string>,
+  ) => {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, reactions } : n)),
+    );
   };
 
   // ── Pin ──
@@ -786,7 +782,7 @@ export default function NotesPage() {
                   isOptimistic={note.id.startsWith("optimistic-")}
                   isJustConfirmed={note.id === justConfirmedId}
                   onEdit={handleNoteEdit}
-                  onReact={handleReact}
+                  onReactionsChange={handleReactionsChange}
                   onPin={handlePin}
                 />
               ))}
@@ -928,8 +924,8 @@ function NoteItem({
   isOptimistic,
   isJustConfirmed,
   onEdit,
-  onReact,
   onPin,
+  onReactionsChange,
 }: {
   note: Note;
   index: number;
@@ -941,7 +937,7 @@ function NoteItem({
     id: string,
     content: string,
   ) => Promise<{ success?: boolean; error?: string }>;
-  onReact: (id: string) => void;
+  onReactionsChange: (id: string, reactions: Record<string, string>) => void;
   onPin: (id: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -1269,22 +1265,19 @@ function NoteItem({
 
         {/* Reactions footer */}
         {!isEditing && !isOptimistic && (
-          <div className="flex items-center justify-between pt-1 border-t border-border/20">
-            <button
-              onClick={() => onReact(note.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
-                "transition-all hover:scale-105",
-                note.reactions
-                  ? "text-rose-400/80 hover:text-rose-400"
-                  : "text-muted-foreground/30 hover:text-rose-400/60",
-              )}
-            >
-              <Heart
-                className={cn("h-3 w-3", note.reactions && "fill-current")}
-              />
-              {note.reactions ? note.reactions : ""}
-            </button>
+          <div className="border-t border-border/20 pt-2">
+            <NoteReactions
+              noteId={note.id}
+              reactions={
+                typeof note.reactions === "object" && note.reactions !== null
+                  ? (note.reactions as Record<string, string>)
+                  : {}
+              }
+              currentAuthor={currentAuthor}
+              onReactionsChange={(reactions) =>
+                onReactionsChange(note.id, reactions)
+              }
+            />
           </div>
         )}
       </motion.div>

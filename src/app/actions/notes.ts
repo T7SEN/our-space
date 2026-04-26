@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
+import { pushNotificationToHistory } from "@/app/actions/notifications";
 
 export interface Note {
   id: string;
@@ -13,7 +14,7 @@ export interface Note {
   createdAt: number;
   editedAt?: number;
   originalContent?: string;
-  reactions?: number;
+  reactions?: Record<string, string>;
   pinned?: boolean;
 }
 
@@ -43,20 +44,10 @@ export async function getCurrentAuthor(): Promise<"T7SEN" | "Besho" | null> {
   return getSessionAuthor();
 }
 
-// ─── Presence-aware push helper ───────────────────────────────────────────────
-//
-// Drop-in replacement for sendPushToUser in src/app/actions/notes.ts
+// ─── Replace sendPushToUser in src/app/actions/notes.ts ──────────────────────
 // Also apply the same pattern to sendHugPush in src/app/actions/mood.ts
-//
-// Behavior:
-//   recipient on /notes       → skip entirely (SSE delivers the note in real-time)
-//   recipient on another page → send FCM (server-side); in-app toast shown by
-//                               useFCMRegistration's pushNotificationReceived
-//   recipient has app closed  → send FCM (OS-level notification shown by Android)
-//
-// The in-app toast vs OS notification distinction is handled automatically:
-//   - App foregrounded: Capacitor intercepts via pushNotificationReceived
-//   - App backgrounded/closed: OS shows the notification natively
+// Import pushNotificationToHistory at the top of both files:
+// import { pushNotificationToHistory } from "@/app/actions/notifications";
 
 async function sendPushToUser(
   toAuthor: "T7SEN" | "Besho",
@@ -72,22 +63,33 @@ async function sendPushToUser(
   }
 
   // ── Presence check ────────────────────────────────────────────────────────
-  // If the recipient is already on the destination page, skip the push.
-  // SSE will deliver the update in real-time within 3 seconds.
   let currentPage: string | null = null;
   try {
     currentPage = await redis.get<string>(`presence:${toAuthor}`);
     if (currentPage === payload.url) {
-      console.log(
-        `[push] Skipping — ${toAuthor} is already on ${payload.url}.`,
-      );
+      console.log(`[push] Skipping — ${toAuthor} is on ${payload.url}.`);
       return;
     }
   } catch (err) {
-    console.warn("[push] Presence check failed, proceeding with push:", err);
+    console.warn("[push] Presence check failed, proceeding:", err);
   }
 
-  // ── FCM (native Android app) ──────────────────────────────────────────────
+  const isAppOpen = currentPage !== null;
+
+  // ── Write to notification history ─────────────────────────────────────────
+  // Always record — regardless of whether the push sends successfully
+  try {
+    await pushNotificationToHistory(toAuthor, {
+      title: payload.title,
+      body: payload.body,
+      url: payload.url,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    console.error("[push] Failed to write notification history:", err);
+  }
+
+  // ── FCM (native Android) ──────────────────────────────────────────────────
   const fcmToken = await redis.get<string>(`push:fcm:${toAuthor}`);
   if (fcmToken) {
     try {
@@ -105,13 +107,10 @@ async function sendPushToUser(
         });
       }
 
-      const isAppOpen = currentPage !== null;
-
-      console.log(`[push] presence for ${toAuthor}:`, currentPage);
-      console.log(`[push] isAppOpen:`, isAppOpen);
-
       await getMessaging().send({
         token: fcmToken,
+        // App open: data-only (Capacitor intercepts, shows in-app toast)
+        // App closed: notification message (OS shows natively)
         ...(isAppOpen
           ? {
               data: {
@@ -126,23 +125,21 @@ async function sendPushToUser(
                 body: payload.body,
               },
               data: { url: payload.url },
-              android: {
-                priority: "high",
-              },
+              android: { priority: "high" },
             }),
       });
 
-      console.log(`[push] FCM notification sent to ${toAuthor}.`);
+      console.log(`[push] FCM sent to ${toAuthor}.`);
       return;
     } catch (err) {
-      console.error("[push] FCM send failed, falling back to Web Push:", err);
+      console.error("[push] FCM failed, falling back to Web Push:", err);
     }
   }
 
-  // ── Web Push fallback (PWA browser) ──────────────────────────────────────
+  // ── Web Push fallback (PWA) ───────────────────────────────────────────────
   const subscription = await redis.get(`push:subscription:${toAuthor}`);
   if (!subscription) {
-    console.log(`[push] No subscription found for ${toAuthor}.`);
+    console.log(`[push] No subscription for ${toAuthor}.`);
     return;
   }
 
@@ -158,7 +155,7 @@ async function sendPushToUser(
     JSON.stringify(payload),
   );
 
-  console.log(`[push] Web Push notification sent to ${toAuthor}.`);
+  console.log(`[push] Web Push sent to ${toAuthor}.`);
 }
 
 // ─── Legacy migration ─────────────────────────────────────────────────────────
@@ -384,28 +381,6 @@ export async function editNote(
   } catch (error) {
     console.error("[notes] Failed to edit note:", error);
     return { error: "Failed to edit note. Please try again." };
-  }
-}
-
-// ─── reactToNote ─────────────────────────────────────────────────────────────
-
-export async function reactToNote(
-  id: string,
-): Promise<{ reactions?: number; error?: string }> {
-  const author = await getSessionAuthor();
-  if (!author) return { error: "Not authenticated." };
-
-  try {
-    const existing = await redis.get<Note>(noteKey(id));
-    if (!existing) return { error: "Note not found." };
-
-    const reactions = (existing.reactions ?? 0) + 1;
-    await redis.set(noteKey(id), { ...existing, reactions });
-
-    return { reactions };
-  } catch (error) {
-    console.error("[notes] Failed to react:", error);
-    return { error: "Failed to react." };
   }
 }
 

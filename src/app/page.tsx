@@ -15,6 +15,7 @@ import { Header } from "@/components/dashboard/header";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { usePresence } from "@/hooks/use-presence";
+import { useBiometricLock } from "@/hooks/use-biometric-lock";
 
 function DashboardSkeleton() {
   return (
@@ -38,6 +39,8 @@ export default function DashboardPage() {
 
   // Handle presence tracking
   usePresence("/dashboard", !!currentAuthor);
+  // Lock the dashboard behind biometrics if the user is authenticated
+  useBiometricLock(!!currentAuthor);
 
   useEffect(() => {
     getCurrentAuthor().then(setCurrentAuthor);

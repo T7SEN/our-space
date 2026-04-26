@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const HEARTBEAT_INTERVAL_MS = 20_000;
+const HEARTBEAT_INTERVAL_MS = 10_000;
 
 async function setPresence(page: string): Promise<void> {
   try {
@@ -19,7 +19,6 @@ async function setPresence(page: string): Promise<void> {
 
 async function clearPresence(): Promise<void> {
   try {
-    // Use keepalive so the request survives page unload
     await fetch("/api/presence", {
       method: "DELETE",
       credentials: "same-origin",
@@ -30,60 +29,88 @@ async function clearPresence(): Promise<void> {
   }
 }
 
+function isNative(): boolean {
+  const cap = (
+    globalThis as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean };
+    }
+  ).Capacitor;
+  return typeof cap !== "undefined" && !!cap.isNativePlatform?.();
+}
+
 /**
  * Tracks the user's current page in Redis with a 30s TTL.
- * Sends a heartbeat every 20s to keep presence alive.
- * Clears presence when:
- *   - Component unmounts (page navigation)
- *   - App goes to background (visibilitychange)
- *   - Page unloads (pagehide)
- *
- * @param page - The current route, e.g. "/notes" or "/"
- * @param enabled - Only track when user is authenticated
+ * On native Android: uses Capacitor App state for reliable background detection.
+ * On PWA: uses visibilitychange + pagehide browser events.
  */
 export function usePresence(page: string, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
-    // Set immediately on mount
     void setPresence(page);
 
-    // Heartbeat to keep TTL alive
     const heartbeatId = setInterval(() => {
       void setPresence(page);
     }, HEARTBEAT_INTERVAL_MS);
 
-    const doc = globalThis as unknown as {
-      addEventListener: (type: string, fn: () => void) => void;
-      removeEventListener: (type: string, fn: () => void) => void;
-      visibilityState?: string;
-    };
-    const win = globalThis as unknown as {
-      addEventListener: (type: string, fn: () => void) => void;
-      removeEventListener: (type: string, fn: () => void) => void;
-    };
+    let removeCapacitorListener: (() => void) | null = null;
 
-    // Clear when app goes to background
-    const handleVisibilityChange = () => {
-      if (doc.visibilityState === "hidden") {
+    if (isNative()) {
+      // ── Native Android — Capacitor App state is reliable ──────────────
+      void (async () => {
+        try {
+          const { App } = await import("@capacitor/app");
+          const listener = await App.addListener(
+            "appStateChange",
+            ({ isActive }) => {
+              if (isActive) {
+                void setPresence(page);
+              } else {
+                void clearPresence();
+              }
+            },
+          );
+          removeCapacitorListener = () => void listener.remove();
+        } catch (err) {
+          console.error("[presence] Capacitor App listener failed:", err);
+        }
+      })();
+    } else {
+      // ── PWA — browser events ───────────────────────────────────────────
+      const doc = globalThis as unknown as {
+        addEventListener: (type: string, fn: () => void) => void;
+        removeEventListener: (type: string, fn: () => void) => void;
+        visibilityState?: string;
+      };
+      const win = globalThis as unknown as {
+        addEventListener: (type: string, fn: () => void) => void;
+        removeEventListener: (type: string, fn: () => void) => void;
+      };
+
+      const handleVisibilityChange = () => {
+        if (doc.visibilityState === "hidden") {
+          void clearPresence();
+        } else {
+          void setPresence(page);
+        }
+      };
+
+      const handlePageHide = () => {
         void clearPresence();
-      } else {
-        void setPresence(page);
-      }
-    };
+      };
 
-    // Clear on page unload
-    const handlePageHide = () => {
-      void clearPresence();
-    };
+      doc.addEventListener("visibilitychange", handleVisibilityChange);
+      win.addEventListener("pagehide", handlePageHide);
 
-    doc.addEventListener("visibilitychange", handleVisibilityChange);
-    win.addEventListener("pagehide", handlePageHide);
+      removeCapacitorListener = () => {
+        doc.removeEventListener("visibilitychange", handleVisibilityChange);
+        win.removeEventListener("pagehide", handlePageHide);
+      };
+    }
 
     return () => {
       clearInterval(heartbeatId);
-      doc.removeEventListener("visibilitychange", handleVisibilityChange);
-      win.removeEventListener("pagehide", handlePageHide);
+      removeCapacitorListener?.();
       void clearPresence();
     };
   }, [page, enabled]);

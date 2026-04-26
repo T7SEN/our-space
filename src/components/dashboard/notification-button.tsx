@@ -11,24 +11,44 @@ export function NotificationButton() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (
-      typeof Notification === "undefined" ||
-      !("serviceWorker" in navigator)
-    ) {
+    const win = globalThis as unknown as {
+      Notification?: { permission: "default" | "denied" | "granted" };
+      navigator?: {
+        serviceWorker?: {
+          ready: Promise<{
+            pushManager: {
+              getSubscription: () => Promise<unknown>;
+            };
+          }>;
+        };
+      };
+    };
+
+    if (!win.Notification || !win.navigator?.serviceWorker) {
       return;
     }
-    setPermission(Notification.permission);
-    navigator.serviceWorker.ready.then((reg) =>
-      reg.pushManager.getSubscription().then((sub) => setIsSubscribed(!!sub)),
-    );
+
+    // 1. Defer synchronous state update to avoid cascading render warnings
+    // while safely initializing client-only state post-hydration.
+    Promise.resolve().then(() => {
+      setPermission(win.Notification!.permission);
+    });
+
+    // 2. Asynchronously check for existing push subscriptions
+    win.navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setIsSubscribed(!!sub))
+      .catch((err) => console.error("Failed to get subscription:", err));
   }, []);
 
   // Don't render on unsupported platforms
-  if (
-    typeof Notification === "undefined" ||
-    !("serviceWorker" in navigator) ||
-    !("PushManager" in window)
-  ) {
+  const win = globalThis as unknown as {
+    Notification?: unknown;
+    navigator?: { serviceWorker?: unknown };
+    PushManager?: unknown;
+  };
+
+  if (!win.Notification || !win.navigator?.serviceWorker || !win.PushManager) {
     return null;
   }
 
@@ -52,7 +72,13 @@ export function NotificationButton() {
   const handleSubscribe = async () => {
     setIsLoading(true);
     try {
-      const perm = await Notification.requestPermission();
+      const win = globalThis as unknown as {
+        Notification: {
+          requestPermission: () => Promise<"granted" | "denied" | "default">;
+        };
+      };
+
+      const perm = await win.Notification.requestPermission();
       setPermission(perm);
       if (perm !== "granted") return;
 

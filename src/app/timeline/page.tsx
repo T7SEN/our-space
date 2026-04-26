@@ -94,10 +94,20 @@ export default function TimelinePage() {
 
   useEffect(() => {
     if (!state?.success) return;
-    formRef.current?.reset();
-    setSelectedEmoji("✨");
-    setShowForm(false);
-    getMilestones().then(setMilestones);
+
+    const form = formRef.current as unknown as { reset: () => void } | null;
+    form?.reset();
+
+    // Defer synchronous state updates to avoid cascading render warnings
+    // This ensures React processes the effect completion before scheduling the next render.
+    Promise.resolve().then(() => {
+      setSelectedEmoji("✨");
+      setShowForm(false);
+    });
+
+    getMilestones()
+      .then(setMilestones)
+      .catch((err) => console.error("Failed to fetch milestones:", err));
   }, [state]);
 
   const handleDelete = async (id: string) => {

@@ -1,20 +1,31 @@
 /**
- * Triggers a short haptic pulse on devices that support it (Android).
- * Silently ignored on iOS, desktop, and when the Vibration API is unavailable.
+ * Triggers a haptic pulse on devices that support the Vibration API.
+ *
+ * ✅ Android Chrome — fully supported
+ * ❌ Desktop browsers — intentionally unsupported by the spec (no-op)
+ * ❌ iOS Safari — not supported; Apple gates haptics at the native layer
+ *
+ * The Vibration API unit is milliseconds. The sensory threshold for a
+ * felt vibration is ~50ms — this function enforces that as a minimum
+ * for scalar values. Array patterns (rhythms) are left untouched.
+ *
+ * NOTE: The system vibration setting is respected. If the Android device
+ * has vibration disabled in Settings → Sound, this will silently no-op.
  */
-export function vibrate(pattern: number | number[] = 8) {
+export function vibrate(pattern: number | number[] = 50): void {
   const win = globalThis as unknown as {
     navigator?: {
       vibrate?: (pattern: number | number[]) => boolean;
     };
   };
 
-  if (win.navigator?.vibrate) {
-    // Vibration API unit is milliseconds. The human sensory threshold for a
-    // felt vibration is ~50ms — scalar values below that are imperceptible.
-    // Array patterns (rhythms) are left untouched.
-    const corrected =
-      typeof pattern === "number" ? Math.max(pattern, 100) : pattern;
-    win.navigator.vibrate(corrected);
-  }
+  if (!win.navigator?.vibrate) return;
+
+  const corrected =
+    typeof pattern === "number" ? Math.max(pattern, 50) : pattern;
+
+  // Remove this log once haptics are confirmed working on device
+  console.log("[haptic] firing:", corrected);
+
+  win.navigator.vibrate(corrected);
 }

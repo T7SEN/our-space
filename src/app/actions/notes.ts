@@ -49,11 +49,6 @@ async function sendPushToUser(
   toAuthor: "T7SEN" | "Besho",
   payload: { title: string; body: string; url: string },
 ): Promise<void> {
-  console.log("[push] VAPID check:", {
-    email: process.env.VAPID_EMAIL,
-    publicKeyLength: process.env.VAPID_PUBLIC_KEY?.length,
-    privateKeyLength: process.env.VAPID_PRIVATE_KEY?.length,
-  });
   if (
     !process.env.VAPID_EMAIL ||
     !process.env.VAPID_PUBLIC_KEY ||

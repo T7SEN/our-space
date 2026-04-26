@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Bell, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { vibrate } from "@/lib/haptic";
 
 export interface ToastPayload {
   title: string;
@@ -36,6 +38,67 @@ export function PushToast() {
       const id = ++toastId;
       setToasts((prev) => [...prev, { id, payload }]);
       setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+
+      // Haptic feedback
+      void vibrate(50, "medium");
+
+      // Subtle notification sound via Web Audio API
+      try {
+        const AudioContext =
+          (
+            globalThis as unknown as {
+              AudioContext?: new () => {
+                createOscillator: () => any;
+                createGain: () => any;
+                destination: any;
+                currentTime: number;
+              };
+              webkitAudioContext?: new () => {
+                createOscillator: () => any;
+                createGain: () => any;
+                destination: any;
+                currentTime: number;
+              };
+            }
+          ).AudioContext ??
+          (
+            globalThis as unknown as {
+              webkitAudioContext?: new () => {
+                createOscillator: () => any;
+                createGain: () => any;
+                destination: any;
+                currentTime: number;
+              };
+            }
+          ).webkitAudioContext;
+
+        if (AudioContext) {
+          const ctx = new AudioContext();
+          const oscillator = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(ctx.destination);
+
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(
+            440,
+            ctx.currentTime + 0.15,
+          );
+
+          gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.001,
+            ctx.currentTime + 0.3,
+          );
+
+          oscillator.start(ctx.currentTime);
+          oscillator.stop(ctx.currentTime + 0.3);
+        }
+      } catch {
+        // Audio API unavailable — silent fallback
+      }
     };
 
     const win = globalThis as unknown as {

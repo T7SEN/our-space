@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { dispatchPushToast } from "@/components/push-toast";
 import { getCurrentAuthor } from "@/app/actions/auth";
 
@@ -11,12 +12,13 @@ import { getCurrentAuthor } from "@/app/actions/auth";
  */
 export function FCMProvider() {
   const [author, setAuthor] = useState<string | null>(null);
+  const pathname = usePathname();
   const registeredForAuthor = useRef<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     getCurrentAuthor().then(setAuthor);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (!author) return;

@@ -193,7 +193,7 @@ async function sendHugPush(to: string, from: string): Promise<void> {
           page: string;
           ts: number;
         };
-        if (Date.now() - ts < 12_000) {
+        if (Date.now() - ts < 9_000) {
           currentPage = page;
         }
       } catch {

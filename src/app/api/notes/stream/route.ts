@@ -10,7 +10,7 @@ const redis = new Redis({
 });
 
 const INDEX_KEY = "notes:index";
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 10_000;
 const KEEPALIVE_INTERVAL_MS = 10_000;
 // Stream lifetime before graceful close (client auto-reconnects via EventSource)
 const MAX_STREAM_AGE_MS = 45_000;

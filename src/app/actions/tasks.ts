@@ -173,7 +173,7 @@ async function sendTaskNotification(
             page: string;
             ts: number;
           };
-          if (Date.now() - ts < 12_000) {
+          if (Date.now() - ts < 9_000) {
             currentPage = page;
           }
         } catch {

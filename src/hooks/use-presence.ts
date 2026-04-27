@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const HEARTBEAT_INTERVAL_MS = 8_000;
+const HEARTBEAT_INTERVAL_MS = 4_000;
 
 async function setPresence(page: string): Promise<void> {
   try {

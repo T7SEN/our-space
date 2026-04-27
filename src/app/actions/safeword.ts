@@ -20,6 +20,49 @@ async function getSession() {
   return decrypt(value);
 }
 
+const HISTORY_KEY = "safeword:history";
+const MAX_HISTORY_ENTRIES = 50;
+
+export interface SafeWordEvent {
+  timestamp: number;
+  triggeredBy: string;
+}
+
+/**
+ * Appends a safe-word event to the persistent history list.
+ * Called internally from triggerSafeWord — not exported.
+ */
+async function recordSafeWordEvent(author: string): Promise<void> {
+  const event: SafeWordEvent = {
+    timestamp: Date.now(),
+    triggeredBy: author,
+  };
+  const pipeline = redis.pipeline();
+  pipeline.lpush(HISTORY_KEY, event);
+  pipeline.ltrim(HISTORY_KEY, 0, MAX_HISTORY_ENTRIES - 1);
+  await pipeline.exec();
+}
+
+/**
+ * Returns the full safe-word activation history.
+ * Restricted to T7SEN only.
+ */
+export async function getSafeWordHistory(): Promise<SafeWordEvent[]> {
+  const session = await getSession();
+  if (session?.author !== "T7SEN") return [];
+
+  try {
+    const events = await redis.lrange<SafeWordEvent>(
+      HISTORY_KEY,
+      0,
+      MAX_HISTORY_ENTRIES - 1,
+    );
+    return events ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function triggerSafeWord(): Promise<{
   success?: boolean;
   cooldown?: number;
@@ -40,6 +83,7 @@ export async function triggerSafeWord(): Promise<{
 
   // Set cooldown
   await redis.set(cooldownKey(author), 1, { ex: COOLDOWN_SECONDS });
+  await recordSafeWordEvent(author); // Record in history for audit purposes
 
   const payload = {
     title: "🔴 Safe Word",

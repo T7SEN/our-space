@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -15,6 +21,7 @@ import {
   RotateCcw,
   Trash2,
   Clock,
+  AlarmClock,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +40,7 @@ import { TITLE_BY_AUTHOR } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { vibrate } from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 
 const STATUS_CONFIG: Record<
   RuleStatus,
@@ -58,6 +66,62 @@ const STATUS_CONFIG: Record<
   },
 };
 
+// ─── Acknowledgement deadline urgency helpers ─────────────────────────────────
+
+type UrgencyLevel = "none" | "low" | "medium" | "high" | "overdue";
+
+const URGENCY_STYLES: Record<
+  UrgencyLevel,
+  { border: string; badge: string; pulse: boolean }
+> = {
+  none: { border: "", badge: "", pulse: false },
+  low: {
+    border: "ring-1 ring-yellow-500/20",
+    badge: "bg-yellow-500/10 text-yellow-400/80",
+    pulse: false,
+  },
+  medium: {
+    border: "ring-1 ring-orange-500/30",
+    badge: "bg-orange-500/10 text-orange-400",
+    pulse: false,
+  },
+  high: {
+    border: "ring-2 ring-destructive/40",
+    badge: "bg-destructive/10 text-destructive",
+    pulse: true,
+  },
+  overdue: {
+    border: "ring-2 ring-destructive/60",
+    badge: "bg-destructive/20 text-destructive",
+    pulse: true,
+  },
+};
+
+function getAckUrgency(
+  rule: Rule & { acknowledgeDeadline?: number },
+  now: number,
+): UrgencyLevel {
+  if (rule.status !== "pending") return "none";
+  if (!rule.acknowledgeDeadline) return "none";
+
+  const ms = rule.acknowledgeDeadline - now;
+  if (ms <= 0) return "overdue";
+  if (ms <= 60 * 60 * 1_000) return "high";
+  if (ms <= 6 * 60 * 60 * 1_000) return "medium";
+  if (ms <= 24 * 60 * 60 * 1_000) return "low";
+  return "none";
+}
+
+function formatTimeRemaining(ms: number): string {
+  if (ms <= 0) return "Overdue";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m left`;
+  return `${m}m left`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function formatDate(timestamp: number): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -72,11 +136,19 @@ export default function RulesPage() {
   const [currentAuthor, setCurrentAuthor] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   const [state, action, isPending] = useActionState(createRule, null);
   const formRef = useRef<HTMLFormElement & { reset: () => void }>(null);
 
   usePresence("/rules", !!currentAuthor);
+
+  const handleRefresh = useCallback(async () => {
+    const list = await getRules();
+    setTimeout(() => setRules(list), 0);
+  }, []);
+
+  useRefreshListener(handleRefresh);
 
   useEffect(() => {
     Promise.all([getRules(), getCurrentAuthor()]).then(([list, author]) => {
@@ -279,6 +351,27 @@ export default function RulesPage() {
                   />
                 </div>
 
+                {/* Acknowledgement deadline */}
+                <div>
+                  <label
+                    htmlFor="rule-ack-deadline"
+                    className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50"
+                  >
+                    Acknowledge by (optional)
+                  </label>
+                  <input
+                    id="rule-ack-deadline"
+                    name="acknowledgeDeadline"
+                    type="datetime-local"
+                    disabled={isPending || undefined}
+                    className={cn(
+                      "w-full rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm",
+                      "outline-none focus:border-primary/40 transition-colors",
+                      "scheme-dark",
+                    )}
+                  />
+                </div>
+
                 {state?.error && (
                   <p className="text-xs font-medium text-destructive">
                     {state.error}
@@ -353,6 +446,7 @@ export default function RulesPage() {
                       isT7SEN={isT7SEN}
                       isBesho={isBesho}
                       isBusy={busyId === rule.id}
+                      now={now}
                       onAcknowledge={handleAcknowledge}
                       onComplete={handleComplete}
                       onReopen={handleReopen}
@@ -372,6 +466,7 @@ export default function RulesPage() {
                       isT7SEN={isT7SEN}
                       isBesho={isBesho}
                       isBusy={busyId === rule.id}
+                      now={now}
                       onAcknowledge={handleAcknowledge}
                       onComplete={handleComplete}
                       onReopen={handleReopen}
@@ -391,6 +486,7 @@ export default function RulesPage() {
                       isT7SEN={isT7SEN}
                       isBesho={isBesho}
                       isBusy={busyId === rule.id}
+                      now={now}
                       onAcknowledge={handleAcknowledge}
                       onComplete={handleComplete}
                       onReopen={handleReopen}
@@ -430,16 +526,18 @@ function RuleItem({
   isT7SEN,
   isBesho,
   isBusy,
+  now,
   onAcknowledge,
   onComplete,
   onReopen,
   onDelete,
 }: {
-  rule: Rule;
+  rule: Rule & { acknowledgeDeadline?: number };
   index: number;
   isT7SEN: boolean;
   isBesho: boolean;
   isBusy: boolean;
+  now: number;
   onAcknowledge: (id: string) => void;
   onComplete: (id: string) => void;
   onReopen: (id: string) => void;
@@ -447,6 +545,8 @@ function RuleItem({
 }) {
   const [showDelete, setShowDelete] = useState(false);
   const cfg = STATUS_CONFIG[rule.status];
+  const urgency = getAckUrgency(rule, now);
+  const urgencyStyles = URGENCY_STYLES[urgency];
 
   return (
     <motion.div
@@ -463,6 +563,7 @@ function RuleItem({
           : rule.status === "pending"
             ? "border-yellow-500/15 bg-yellow-500/5"
             : "border-white/5 bg-card/20 hover:border-white/10",
+        urgencyStyles.border,
       )}
     >
       <div className="flex items-start gap-4">
@@ -498,6 +599,22 @@ function RuleItem({
             >
               {cfg.label}
             </span>
+
+            {/* Urgency badge */}
+            {urgency !== "none" && rule.acknowledgeDeadline && (
+              <motion.span
+                animate={urgencyStyles.pulse ? { opacity: [1, 0.5, 1] } : {}}
+                transition={{ duration: 1.4, repeat: Infinity }}
+                className={cn(
+                  "flex items-center gap-1 rounded-full px-2 py-0.5",
+                  "text-[9px] font-black uppercase tracking-wider",
+                  urgencyStyles.badge,
+                )}
+              >
+                <AlarmClock className="h-2.5 w-2.5" />
+                {formatTimeRemaining(rule.acknowledgeDeadline - now)}
+              </motion.span>
+            )}
           </div>
 
           {rule.description && (

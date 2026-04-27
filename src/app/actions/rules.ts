@@ -17,6 +17,7 @@ export interface Rule {
   createdAt: number;
   acknowledgedAt?: number;
   completedAt?: number;
+  acknowledgeDeadline?: number;
 }
 
 const redis = new Redis({
@@ -143,6 +144,7 @@ export async function createRule(
 
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim();
+  const acknowledgeDeadlineStr = formData.get("acknowledgeDeadline") as string;
 
   if (!title) return { error: "Rule is required." };
 
@@ -153,6 +155,9 @@ export async function createRule(
     status: "pending",
     createdBy: session.author,
     createdAt: Date.now(),
+    ...(acknowledgeDeadlineStr && {
+      acknowledgeDeadline: new Date(acknowledgeDeadlineStr).getTime(),
+    }),
   };
 
   try {

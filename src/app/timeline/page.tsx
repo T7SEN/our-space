@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -23,6 +29,7 @@ import { getCurrentAuthor } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { START_DATE } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 
 const EMOJI_OPTIONS = [
   "✨",
@@ -85,6 +92,13 @@ export default function TimelinePage() {
 
   usePresence("/timeline", !!currentAuthor);
 
+  const handleRefresh = useCallback(async () => {
+    const items = await getMilestones();
+    setTimeout(() => setMilestones(items), 0);
+  }, []);
+
+  useRefreshListener(handleRefresh);
+
   useEffect(() => {
     Promise.all([getMilestones(), getCurrentAuthor()]).then(
       ([items, author]) => {
@@ -97,17 +111,12 @@ export default function TimelinePage() {
 
   useEffect(() => {
     if (!state?.success) return;
-
     const form = formRef.current as unknown as { reset: () => void } | null;
     form?.reset();
-
-    // Defer synchronous state updates to avoid cascading render warnings
-    // This ensures React processes the effect completion before scheduling the next render.
     Promise.resolve().then(() => {
       setSelectedEmoji("✨");
       setShowForm(false);
     });
-
     getMilestones()
       .then(setMilestones)
       .catch((err) => console.error("Failed to fetch milestones:", err));
@@ -185,7 +194,6 @@ export default function TimelinePage() {
                   Add a Milestone
                 </h2>
 
-                {/* Emoji picker */}
                 <div>
                   <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                     Emoji
@@ -210,7 +218,6 @@ export default function TimelinePage() {
                   </div>
                 </div>
 
-                {/* Title */}
                 <div>
                   <label
                     htmlFor="timeline-title"
@@ -233,7 +240,6 @@ export default function TimelinePage() {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label
                     htmlFor="timeline-desc"
@@ -255,7 +261,6 @@ export default function TimelinePage() {
                   />
                 </div>
 
-                {/* Date */}
                 <div>
                   <label
                     htmlFor="timeline-date"
@@ -384,7 +389,6 @@ function MilestoneItem({
           "before:absolute before:left-4 before:top-8 before:h-full before:w-0.5 before:bg-border/30",
       )}
     >
-      {/* Emoji dot */}
       <div className="absolute left-0 top-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-card/60 text-base backdrop-blur-sm">
         {milestone.emoji}
       </div>

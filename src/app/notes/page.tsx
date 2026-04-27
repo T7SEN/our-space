@@ -58,6 +58,7 @@ import {
 import { vibrate } from "@/lib/haptic";
 import { usePresence } from "@/hooks/use-presence";
 import { NoteReactions } from "@/components/notes/note-reactions";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 
 declare let window: any;
 declare let document: any;
@@ -154,6 +155,7 @@ export default function NotesPage() {
       console.error("[notes] Silent refresh failed:", err);
     }
   }, []);
+  useRefreshListener(silentRefresh);
 
   useEffect(() => {
     notesRef.current = notes;

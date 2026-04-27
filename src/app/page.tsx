@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { WeatherCard } from "@/components/dashboard/weather-card";
 import { CounterCard } from "@/components/dashboard/counter-card";
 import { TimezoneCard } from "@/components/dashboard/timezone-card";
@@ -9,10 +9,13 @@ import { BirthdayCard } from "@/components/dashboard/birthday-card";
 import { DistanceCard } from "@/components/dashboard/distance-card";
 import { MoonPhaseCard } from "@/components/dashboard/moon-phase-card";
 import { MoodCard } from "@/components/dashboard/mood-card";
+import { MoodHistoryGrid } from "@/components/dashboard/mood-history-grid";
+import { SafeWordHistory } from "@/components/dashboard/safeword-history";
 import { Header } from "@/components/dashboard/header";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { usePresence } from "@/hooks/use-presence";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { SafeWordCard } from "@/components/dashboard/safeword-card";
 
 function DashboardSkeleton() {
@@ -21,6 +24,7 @@ function DashboardSkeleton() {
       <div className="h-40 rounded-3xl bg-muted/20 md:col-span-12" />
       <div className="h-64 rounded-3xl bg-muted/20 md:col-span-8" />
       <div className="h-64 rounded-3xl bg-muted/20 md:col-span-4" />
+      <div className="h-24 rounded-3xl bg-muted/20 md:col-span-12" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
       <div className="h-48 rounded-3xl bg-muted/20 md:col-span-4" />
@@ -34,8 +38,18 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [now, setNow] = useState<Date | null>(null);
   const [currentAuthor, setCurrentAuthor] = useState<string | null>(null);
+  // Incrementing this forces MoodCard, MoodHistoryGrid and SafeWordHistory
+  // to remount and re-fetch their own data on pull-to-refresh.
+  // Time-based cards (CounterCard, TimezoneCard, etc.) are unaffected.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   usePresence("/dashboard", !!currentAuthor);
+
+  const handleRefresh = useCallback(() => {
+    setTimeout(() => setRefreshKey((k) => k + 1), 0);
+  }, []);
+
+  useRefreshListener(handleRefresh);
 
   useEffect(() => {
     getCurrentAuthor().then(setCurrentAuthor);
@@ -47,6 +61,8 @@ export default function DashboardPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const isT7SEN = currentAuthor === "T7SEN";
 
   return (
     <div className="relative min-h-screen bg-background p-6 md:p-12">
@@ -67,15 +83,20 @@ export default function DashboardPage() {
               <CounterCard now={now} />
             </div>
 
-            {/* ── Row 2: Mood (8 cols) + Weather (4 cols) ── */}
+            {/* ── Row 2: Mood (8 cols) + Birthday (4 cols) ── */}
             <div className="md:col-span-8 md:h-full">
-              <MoodCard currentAuthor={currentAuthor} />
+              <MoodCard key={refreshKey} currentAuthor={currentAuthor} />
             </div>
             <div className="md:col-span-4 md:h-full">
               <BirthdayCard now={now} />
             </div>
 
-            {/* ── Row 3: Timezone | Birthday | Moon ── */}
+            {/* ── Row 3: Mood history — full width ── */}
+            <div className="md:col-span-12">
+              <MoodHistoryGrid key={refreshKey} currentAuthor={currentAuthor} />
+            </div>
+
+            {/* ── Row 4: Timezone | Weather | Moon ── */}
             <div className="md:col-span-4 md:h-full">
               <TimezoneCard now={now} />
             </div>
@@ -88,7 +109,7 @@ export default function DashboardPage() {
               <MoonPhaseCard now={now} />
             </div>
 
-            {/* ── Row 4: Distance | Quote ── */}
+            {/* ── Row 5: Distance | Quote ── */}
             <div className="md:col-span-6">
               <DistanceCard />
             </div>
@@ -98,10 +119,17 @@ export default function DashboardPage() {
               </ErrorBoundary>
             </div>
 
-            {/* ── Row 5: Safe Word — bottom, rarely used ── */}
+            {/* ── Row 6: Safe Word — bottom, rarely used ── */}
             <div className="md:col-span-12">
               <SafeWordCard currentAuthor={currentAuthor} />
             </div>
+
+            {/* ── Row 7: Safe Word History — T7SEN only ── */}
+            {isT7SEN && (
+              <div className="md:col-span-12">
+                <SafeWordHistory key={refreshKey} />
+              </div>
+            )}
           </div>
         )}
       </div>

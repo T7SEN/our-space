@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -28,6 +34,7 @@ import { getCurrentAuthor } from "@/app/actions/auth";
 import { usePresence } from "@/hooks/use-presence";
 import { vibrate } from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 
 const PRIORITY_CONFIG: Record<
   TaskPriority,
@@ -86,6 +93,13 @@ export default function TasksPage() {
   const formRef = useRef<HTMLFormElement & { reset: () => void }>(null);
 
   usePresence("/tasks", !!currentAuthor);
+
+  const handleRefresh = useCallback(async () => {
+    const [taskList] = await Promise.all([getTasks()]);
+    setTimeout(() => setTasks(taskList), 0);
+  }, []);
+
+  useRefreshListener(handleRefresh);
 
   useEffect(() => {
     Promise.all([getTasks(), getCurrentAuthor()]).then(([taskList, author]) => {
@@ -444,7 +458,7 @@ function TaskItem({
       animate={{ opacity: task.completed ? 0.5 : 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.05, 0.3) }}
       className={cn(
-        "group flex items-start gap-4 rounded-2xl border p-5 transition-colors",
+        "group relative flex items-start gap-4 rounded-2xl border p-5 transition-colors",
         task.completed
           ? "border-white/5 bg-card/10"
           : isOverdue
@@ -452,6 +466,13 @@ function TaskItem({
             : "border-white/5 bg-card/20 hover:border-white/10",
       )}
     >
+      {/* Overdue pulse ring */}
+      {isOverdue && !task.completed && (
+        <span className="pointer-events-none absolute inset-0 rounded-2xl">
+          <span className="absolute inset-0 animate-ping rounded-2xl border border-destructive/30" />
+        </span>
+      )}
+
       {/* Complete button — Besho only, pending tasks */}
       <div className="mt-0.5 shrink-0">
         {task.completed ? (

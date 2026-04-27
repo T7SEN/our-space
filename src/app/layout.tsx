@@ -13,6 +13,7 @@ import { PushToast } from "@/components/push-toast";
 import { FCMProvider } from "@/components/fcm-provider";
 import { BiometricGate } from "@/components/biometric-gate";
 import { TopNavbar } from "@/components/navigation/top-navbar";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
@@ -86,7 +87,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <TooltipProvider>
+              <PullToRefresh />
               <BiometricGate>
+                <PullToRefresh />
                 <TopNavbar />
                 {children}
                 <CapacitorInit />

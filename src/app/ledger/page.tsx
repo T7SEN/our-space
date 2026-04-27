@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -31,6 +37,7 @@ import { TITLE_BY_AUTHOR } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { vibrate } from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
 
 type Filter = "all" | "reward" | "punishment";
 
@@ -63,6 +70,13 @@ export default function LedgerPage() {
   const formRef = useRef<HTMLFormElement & { reset: () => void }>(null);
 
   usePresence("/ledger", !!currentAuthor);
+
+  const handleRefresh = useCallback(async () => {
+    const entries = await getLedgerEntries();
+    setTimeout(() => setEntries(entries), 0);
+  }, []);
+
+  useRefreshListener(handleRefresh);
 
   useEffect(() => {
     Promise.all([getLedgerEntries(), getCurrentAuthor()]).then(

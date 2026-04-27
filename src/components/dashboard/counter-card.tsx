@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Heart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
-import { START_DATE } from "@/lib/constants";
+import { START_DATE, COUNTER_LABEL } from "@/lib/constants";
 import { vibrate } from "@/lib/haptic";
 
 type TimeUnitKey = "years" | "months" | "days" | "hours" | "mins" | "secs";
@@ -115,7 +115,7 @@ export function CounterCard({ now }: { now: Date }) {
               "text-muted-foreground",
             )}
           >
-            Total Time Together
+            {COUNTER_LABEL}
           </h2>
         </div>
 

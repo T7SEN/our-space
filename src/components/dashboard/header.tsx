@@ -1,4 +1,4 @@
-import { MY_TZ } from "@/lib/constants";
+import { MY_TZ, TITLE_BY_AUTHOR } from "@/lib/constants";
 
 interface HeaderProps {
   now: Date;
@@ -18,7 +18,11 @@ export function Header({ now, author }: HeaderProps) {
   if (hour >= 5 && hour < 12) greeting = "Good morning";
   else if (hour >= 12 && hour < 18) greeting = "Good afternoon";
 
-  const personalGreeting = author ? `${greeting}, ${author}` : greeting;
+  const title =
+    author && (author === "T7SEN" || author === "Besho")
+      ? TITLE_BY_AUTHOR[author]
+      : null;
+  const personalGreeting = title ? `${greeting}, ${title}` : greeting;
 
   return (
     <header className="flex items-start justify-between pb-2 pr-20">

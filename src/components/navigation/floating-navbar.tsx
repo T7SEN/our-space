@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { Home, BookHeart, CalendarClock, CheckSquare } from "lucide-react";
+import {
+  Home,
+  BookHeart,
+  CalendarClock,
+  CheckSquare,
+  ScrollText,
+  Award,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -11,6 +18,8 @@ const NAV_ITEMS = [
   { name: "Notes", href: "/notes", icon: BookHeart },
   { name: "Timeline", href: "/timeline", icon: CalendarClock },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
+  { name: "Rules", href: "/rules", icon: ScrollText },
+  { name: "Ledger", href: "/ledger", icon: Award },
 ];
 
 export function FloatingNavbar() {

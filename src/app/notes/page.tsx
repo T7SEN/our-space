@@ -48,7 +48,7 @@ import {
   type PendingNote,
 } from "@/lib/offline-notes";
 import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
-import { START_DATE } from "@/lib/constants";
+import { START_DATE, TITLE_BY_AUTHOR } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -530,11 +530,11 @@ export default function NotesPage() {
         {authorCounts && (
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
-              T7SEN: {authorCounts.T7SEN}
+              {TITLE_BY_AUTHOR.T7SEN}: {authorCounts.T7SEN}
             </span>
             <span className="text-[10px] text-muted-foreground/20">·</span>
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary/50">
-              Besho: {authorCounts.Besho}
+              {TITLE_BY_AUTHOR.Besho}: {authorCounts.Besho}
             </span>
           </div>
         )}
@@ -590,7 +590,9 @@ export default function NotesPage() {
                   )}
                 />
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {currentAuthor}
+                  {currentAuthor === "T7SEN" || currentAuthor === "Besho"
+                    ? TITLE_BY_AUTHOR[currentAuthor]
+                    : currentAuthor}
                 </span>
               </div>
             ) : (
@@ -716,7 +718,7 @@ export default function NotesPage() {
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-1.5">
-                    {f === "all" ? "All" : f}
+                    {f === "all" ? "All" : TITLE_BY_AUTHOR[f]}
                     {isLoadingMore && f === filter && (
                       <Loader2 className="h-2.5 w-2.5 animate-spin" />
                     )}
@@ -1050,7 +1052,9 @@ function NoteItem({
                 isPartner ? "text-primary/80" : "text-foreground/60",
               )}
             >
-              {note.author ?? "Unknown"}
+              {note.author === "T7SEN" || note.author === "Besho"
+                ? TITLE_BY_AUTHOR[note.author]
+                : (note.author ?? "Unknown")}
             </span>
 
             <span className="text-[10px] text-muted-foreground/30">·</span>

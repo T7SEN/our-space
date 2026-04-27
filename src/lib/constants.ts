@@ -12,6 +12,23 @@ export const PARTNER_LABEL = "Tabuk";
 export const MY_CITY = "Al Shorouk, Egypt";
 export const PARTNER_CITY = "Tabuk, KSA";
 
+// ── Dynamic titles ────────────────────────────────────────────────────────────
+// Edit these to match the titles you use for each other. They drive the
+// greeting on the dashboard, the author labels in the notebook, and any other
+// place the app refers to either of you by role rather than by handle.
+export const T7SEN_TITLE = "Daddy";
+export const BESHO_TITLE = "Kitten";
+
+export const TITLE_BY_AUTHOR: Record<"T7SEN" | "Besho", string> = {
+  T7SEN: T7SEN_TITLE,
+  Besho: BESHO_TITLE,
+};
+
+// Label used on the dashboard counter card. Replaces the generic
+// "Total Time Together" — change it to whatever frames your dynamic best
+// (e.g. "Total Time Bound", "Time Owned", "Hers, His, Ours").
+export const COUNTER_LABEL = "Total Time Bound";
+
 export const DISTANCE_KM = 520;
 
 export const BIRTHDAYS = {

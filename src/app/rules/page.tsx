@@ -526,7 +526,10 @@ function RuleItem({
 
         {isT7SEN && !showDelete && (
           <button
-            onClick={() => setShowDelete(true)}
+            onClick={() => {
+              void vibrate(30, "light");
+              setShowDelete(true);
+            }}
             aria-label="Delete rule"
             className="shrink-0 rounded-full p-1.5 text-muted-foreground/20 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
           >
@@ -543,7 +546,10 @@ function RuleItem({
               Cancel
             </button>
             <button
-              onClick={() => onDelete(rule.id)}
+              onClick={() => {
+                void vibrate(50, "heavy");
+                onDelete(rule.id);
+              }}
               disabled={isBusy || undefined}
               className="flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-destructive transition-all hover:bg-destructive/20 disabled:opacity-50"
             >

@@ -342,7 +342,10 @@ export default function LedgerPage() {
             {(["all", "reward", "punishment"] as Filter[]).map((f) => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => {
+                  void vibrate(30, "light");
+                  setFilter(f);
+                }}
                 className={cn(
                   "relative rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all",
                   filter === f
@@ -500,7 +503,10 @@ function EntryItem({
 
         {canDelete && !showDelete && (
           <button
-            onClick={() => setShowDelete(true)}
+            onClick={() => {
+              void vibrate(30, "light");
+              setShowDelete(true);
+            }}
             aria-label="Delete entry"
             className="shrink-0 rounded-full p-1.5 text-muted-foreground/20 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
           >
@@ -517,7 +523,10 @@ function EntryItem({
               Cancel
             </button>
             <button
-              onClick={() => onDelete(entry.id)}
+              onClick={() => {
+                void vibrate(50, "heavy");
+                onDelete(entry.id);
+              }}
               disabled={isBusy || undefined}
               className="flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-destructive transition-all hover:bg-destructive/20 disabled:opacity-50"
             >

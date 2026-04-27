@@ -72,9 +72,7 @@ export default function DashboardPage() {
               <MoodCard currentAuthor={currentAuthor} />
             </div>
             <div className="md:col-span-4 md:h-full">
-              <ErrorBoundary label="WeatherCard">
-                <WeatherCard />
-              </ErrorBoundary>
+              <BirthdayCard now={now} />
             </div>
 
             {/* ── Row 3: Timezone | Birthday | Moon ── */}
@@ -82,7 +80,9 @@ export default function DashboardPage() {
               <TimezoneCard now={now} />
             </div>
             <div className="md:col-span-4 md:h-full">
-              <BirthdayCard now={now} />
+              <ErrorBoundary label="WeatherCard">
+                <WeatherCard />
+              </ErrorBoundary>
             </div>
             <div className="md:col-span-4 md:h-full">
               <MoonPhaseCard now={now} />

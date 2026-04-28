@@ -7,20 +7,33 @@ import { login } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const SKIP_BIOMETRIC_KEY = "ourspace_skip_biometric";
+
 export default function LoginPage() {
   const [state, action, isPending] = useActionState(login, null);
 
   const hasSubmitted = useRef(false);
 
-  // After successful login on native, mark biometric as enrolled.
-  // Login redirects on success so state remains null — we detect success
-  // by checking that isPending just went false with no error in state.
   useEffect(() => {
     if (isPending) {
       hasSubmitted.current = true;
       return;
     }
     if (!hasSubmitted.current || state?.error) return;
+
+    // Successful login — write a one-time session flag so BiometricGate
+    // skips the auto-trigger and goes straight to unlocked. Without this,
+    // the gate re-prompts biometric immediately after every password login.
+    try {
+      const ss = (
+        globalThis as unknown as {
+          sessionStorage?: { setItem: (k: string, v: string) => void };
+        }
+      ).sessionStorage;
+      ss?.setItem(SKIP_BIOMETRIC_KEY, "1");
+    } catch {
+      /* sessionStorage unavailable — gate will still function, just prompts once more */
+    }
 
     const cap = (
       globalThis as unknown as {

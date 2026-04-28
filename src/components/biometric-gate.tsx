@@ -6,18 +6,19 @@ import { Fingerprint, Lock, KeyRound, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { vibrate } from "@/lib/haptic";
 
-// How long the app can be backgrounded before re-locking (ms)
 const LOCK_AFTER_MS = 30_000;
-
-// Preference key stored on device
 const ENROLLED_KEY = "biometric_enrolled";
+// sessionStorage flag written by login page to skip auto-trigger
+const SKIP_BIOMETRIC_KEY = "ourspace_skip_biometric";
+// Max consecutive biometric failures before we stop auto-retrying
+const MAX_AUTO_FAILURES = 2;
 
 type GateState =
-  | "checking" // Determining if biometrics available + enrolled
-  | "locked" // Showing the lock screen
-  | "prompting" // Biometric prompt is active
-  | "unlocked" // Authenticated — render children
-  | "unavailable"; // Native not available, render children immediately
+  | "checking"
+  | "locked"
+  | "prompting"
+  | "unlocked"
+  | "unavailable";
 
 function isNative(): boolean {
   const cap = (
@@ -28,6 +29,34 @@ function isNative(): boolean {
   return typeof cap !== "undefined" && !!cap.isNativePlatform?.();
 }
 
+type SessionStorageLike = {
+  getItem: (k: string) => string | null;
+  removeItem: (k: string) => void;
+  setItem: (k: string, v: string) => void;
+};
+
+function readSessionFlag(key: string): boolean {
+  try {
+    const ss = (
+      globalThis as unknown as { sessionStorage?: SessionStorageLike }
+    ).sessionStorage;
+    return ss?.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearSessionFlag(key: string): void {
+  try {
+    const ss = (
+      globalThis as unknown as { sessionStorage?: SessionStorageLike }
+    ).sessionStorage;
+    ss?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 interface BiometricGateProps {
   children: React.ReactNode;
 }
@@ -36,8 +65,11 @@ export function BiometricGate({ children }: BiometricGateProps) {
   const [gateState, setGateState] = useState<GateState>("checking");
   const [biometryLabel, setBiometryLabel] = useState("Biometrics");
   const [authError, setAuthError] = useState<string | null>(null);
+
   const backgroundedAtRef = useRef<number | null>(null);
   const isAuthenticatingRef = useRef(false);
+  // Tracks consecutive non-cancel failures to prevent infinite retry loops
+  const failureCountRef = useRef(0);
 
   // ── Authenticate ──────────────────────────────────────────────────────────
   const authenticate = useCallback(async () => {
@@ -53,13 +85,11 @@ export function BiometricGate({ children }: BiometricGateProps) {
       const { isAvailable, biometryType } = await BiometricAuth.checkBiometry();
 
       if (!isAvailable) {
-        // No biometrics on device — skip gate entirely
         setGateState("unavailable");
         isAuthenticatingRef.current = false;
         return;
       }
 
-      // Set human-readable label
       const label =
         biometryType === BiometryType.faceId
           ? "Face ID"
@@ -81,30 +111,48 @@ export function BiometricGate({ children }: BiometricGateProps) {
         androidConfirmationRequired: false,
       });
 
-      // Success
+      // ── Success ──
+      failureCountRef.current = 0;
       void vibrate(50, "medium");
       setGateState("unlocked");
 
-      // Mark as enrolled so future opens skip the password
       const { Preferences } = await import("@capacitor/preferences");
       await Preferences.set({ key: ENROLLED_KEY, value: "true" });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message =
+        err instanceof Error ? err.message : String(err ?? "unknown");
 
-      // User tapped "Use Password" or cancelled
-      if (
+      const isCancelled =
         message.includes("cancel") ||
         message.includes("Cancel") ||
         message.includes("USER_CANCELED") ||
-        message.includes("userCancel")
-      ) {
+        message.includes("userCancel") ||
+        // Honor / EMUI specific
+        message.includes("DISMISS") ||
+        message.includes("dismissed") ||
+        message.includes("Negative") ||
+        message.includes("negative");
+
+      if (isCancelled) {
+        // User explicitly tapped "Use Password" — show password fallback
+        failureCountRef.current = 0;
         setGateState("locked");
         setAuthError("use_password");
       } else {
-        // Actual failure (too many attempts, lockout etc.)
+        // Genuine failure (bad fingerprint, lockout, hardware error, etc.)
+        failureCountRef.current += 1;
         void vibrate([50, 100, 50], "heavy");
         setGateState("locked");
-        setAuthError("failed");
+
+        if (failureCountRef.current >= MAX_AUTO_FAILURES) {
+          // Stop auto-retrying — force the user to the password flow.
+          // This prevents the infinite loop on devices (e.g. Honor) where
+          // biometric auth keeps failing with non-cancel error codes.
+          setAuthError("use_password");
+          failureCountRef.current = 0;
+        } else {
+          setAuthError("failed");
+        }
       }
     } finally {
       isAuthenticatingRef.current = false;
@@ -114,9 +162,7 @@ export function BiometricGate({ children }: BiometricGateProps) {
   // ── Initial check ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isNative()) {
-      setTimeout(() => {
-        setGateState("unavailable");
-      }, 0);
+      setTimeout(() => setGateState("unavailable"), 0);
       return;
     }
 
@@ -131,16 +177,22 @@ export function BiometricGate({ children }: BiometricGateProps) {
           return;
         }
 
-        // Check if user has previously authenticated (enrolled)
         const { Preferences } = await import("@capacitor/preferences");
         const { value } = await Preferences.get({ key: ENROLLED_KEY });
 
         if (value === "true") {
-          // Returning user — show lock screen and auto-trigger biometric
+          // Check if the login page flagged us to skip biometric this session.
+          // This prevents the loop: Use Password → Login → redirect → biometric again.
+          const shouldSkip = readSessionFlag(SKIP_BIOMETRIC_KEY);
+          if (shouldSkip) {
+            clearSessionFlag(SKIP_BIOMETRIC_KEY);
+            setGateState("unlocked");
+            return;
+          }
+
           setGateState("locked");
           await authenticate();
         } else {
-          // First time — show lock screen, wait for tap
           setGateState("locked");
         }
       } catch {
@@ -162,7 +214,11 @@ export function BiometricGate({ children }: BiometricGateProps) {
           "appStateChange",
           async ({ isActive }) => {
             if (!isActive) {
-              backgroundedAtRef.current = Date.now();
+              // Only record backgrounding when truly unlocked — prevents
+              // the biometric overlay dismiss from registering as a background event
+              if (gateState === "unlocked") {
+                backgroundedAtRef.current = Date.now();
+              }
               return;
             }
 
@@ -173,6 +229,7 @@ export function BiometricGate({ children }: BiometricGateProps) {
             if (elapsed >= LOCK_AFTER_MS && gateState === "unlocked") {
               setGateState("locked");
               setAuthError(null);
+              failureCountRef.current = 0;
               await authenticate();
             }
           },
@@ -188,12 +245,10 @@ export function BiometricGate({ children }: BiometricGateProps) {
     };
   }, [gateState, authenticate]);
 
-  // ── Render children immediately if not native or unavailable ─────────────
   if (gateState === "unavailable") return <>{children}</>;
 
   return (
     <>
-      {/* Always render children in background so the app loads */}
       <div
         aria-hidden={gateState !== "unlocked"}
         className={cn(
@@ -203,7 +258,6 @@ export function BiometricGate({ children }: BiometricGateProps) {
         {children}
       </div>
 
-      {/* Lock overlay */}
       <AnimatePresence>
         {(gateState === "locked" ||
           gateState === "prompting" ||
@@ -219,7 +273,6 @@ export function BiometricGate({ children }: BiometricGateProps) {
             )}
             style={{ paddingTop: "env(safe-area-inset-top)" }}
           >
-            {/* Ambient glow */}
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div className="absolute left-1/2 top-1/3 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
             </div>
@@ -261,7 +314,7 @@ export function BiometricGate({ children }: BiometricGateProps) {
                 )}
               </motion.div>
 
-              {/* App name */}
+              {/* Label */}
               <div className="space-y-2">
                 <h1 className="text-2xl font-black tracking-tight text-foreground">
                   Our Space
@@ -290,7 +343,7 @@ export function BiometricGate({ children }: BiometricGateProps) {
 
               {/* Buttons */}
               {gateState === "locked" && (
-                <div className="flex flex-col items-center gap-3 w-full">
+                <div className="flex w-full flex-col items-center gap-3">
                   {authError !== "use_password" && (
                     <motion.button
                       whileTap={{ scale: 0.95 }}
@@ -310,8 +363,6 @@ export function BiometricGate({ children }: BiometricGateProps) {
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
-                      // Navigate to login page — session cookie handles
-                      // the rest; after login the gate will be unlocked
                       void vibrate(30, "light");
                       (
                         globalThis as unknown as {

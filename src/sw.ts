@@ -4,6 +4,7 @@
 import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
+import { logger } from "@/lib/logger";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -63,7 +64,7 @@ async function syncPendingNotes(): Promise<void> {
   try {
     db = await openDB();
   } catch (err) {
-    console.error("[sw/sync] Failed to open IndexedDB:", err);
+    logger.error("[sw/sync] Failed to open IndexedDB:", err);
     return;
   }
 
@@ -85,16 +86,15 @@ async function syncPendingNotes(): Promise<void> {
 
       if (response.ok) {
         await deletePending(db, note.id);
-        console.log("[sw/sync] Synced offline note:", note.id);
+        logger.info("[sw/sync] Synced offline note:", { id: note.id });
       } else {
-        console.warn(
-          "[sw/sync] Server rejected note:",
-          note.id,
-          response.status,
-        );
+        logger.warn("[sw/sync] Server rejected note:", {
+          id: note.id,
+          status: response.status,
+        });
       }
     } catch (err) {
-      console.error("[sw/sync] Network error for note:", note.id, err);
+      logger.error("[sw/sync] Network error for note:", err, { id: note.id });
       // Leave in IndexedDB — will retry on next sync event
     }
   }

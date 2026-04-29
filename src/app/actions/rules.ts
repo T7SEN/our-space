@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { pushNotificationToHistory } from "@/app/actions/notifications";
+import { logger } from "@/lib/logger";
 
 export type RuleStatus = "pending" | "active" | "completed";
 
@@ -114,7 +115,7 @@ async function sendRuleNotification(
       JSON.stringify(payload),
     );
   } catch (err) {
-    console.error("[rules] Notification failed:", err);
+    logger.error("[rules] Notification failed:", err);
   }
 }
 
@@ -129,7 +130,7 @@ export async function getRules(): Promise<Rule[]> {
     const rules = await redis.mget<(Rule | null)[]>(...ids.map(ruleKey));
     return rules.filter((r): r is Rule => r !== null);
   } catch (error) {
-    console.error("[rules] Failed to fetch:", error);
+    logger.error("[rules] Failed to fetch:", error);
     return [];
   }
 }
@@ -175,7 +176,7 @@ export async function createRule(
     revalidatePath("/rules");
     return { success: true };
   } catch (error) {
-    console.error("[rules] Failed to create:", error);
+    logger.error("[rules] Failed to create:", error);
     return { error: "Failed to save rule." };
   }
 }
@@ -210,7 +211,7 @@ export async function acknowledgeRule(
     revalidatePath("/rules");
     return { success: true };
   } catch (error) {
-    console.error("[rules] Failed to acknowledge:", error);
+    logger.error("[rules] Failed to acknowledge:", error);
     return { error: "Failed to acknowledge rule." };
   }
 }
@@ -237,7 +238,7 @@ export async function completeRule(
     revalidatePath("/rules");
     return { success: true };
   } catch (error) {
-    console.error("[rules] Failed to complete:", error);
+    logger.error("[rules] Failed to complete:", error);
     return { error: "Failed to complete rule." };
   }
 }
@@ -267,7 +268,7 @@ export async function reopenRule(
     revalidatePath("/rules");
     return { success: true };
   } catch (error) {
-    console.error("[rules] Failed to reopen:", error);
+    logger.error("[rules] Failed to reopen:", error);
     return { error: "Failed to reopen rule." };
   }
 }
@@ -289,7 +290,7 @@ export async function deleteRule(
     revalidatePath("/rules");
     return { success: true };
   } catch (error) {
-    console.error("[rules] Failed to delete:", error);
+    logger.error("[rules] Failed to delete:", error);
     return { error: "Failed to delete rule." };
   }
 }

@@ -1,4 +1,5 @@
 import { isNative } from "@/lib/native";
+import { logger } from "./logger";
 
 /**
  * Unified haptic feedback utility.
@@ -28,7 +29,7 @@ export async function vibrate(
       };
       await Haptics.impact({ style: styleMap[style] });
     } catch (err) {
-      console.error("[haptic] Capacitor haptics failed:", err);
+      logger.error("[haptic] Capacitor haptics failed:", err);
     }
     return;
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Bell, BellOff, BellRing } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 export function NotificationButton() {
   const [permission, setPermission] =
@@ -39,7 +40,7 @@ export function NotificationButton() {
     win.navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
       .then((sub) => setIsSubscribed(!!sub))
-      .catch((err) => console.error("Failed to get subscription:", err));
+      .catch((err) => logger.error("Failed to get subscription:", err));
   }, []);
 
   // 1. Check for native Capacitor app
@@ -68,7 +69,7 @@ export function NotificationButton() {
       }
       setIsSubscribed(false);
     } catch (err) {
-      console.error("[push] Unsubscribe failed:", err);
+      logger.error("[push] Unsubscribe failed:", err);
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +103,7 @@ export function NotificationButton() {
 
       setIsSubscribed(true);
     } catch (err) {
-      console.error("[push] Subscribe failed:", err);
+      logger.error("[push] Subscribe failed:", err);
     } finally {
       setIsLoading(false);
     }

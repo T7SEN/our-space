@@ -1,5 +1,7 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 export type QuoteData = {
   text: string;
   author: string;
@@ -56,7 +58,7 @@ export async function fetchRandomQuote(
 
     throw new Error("JSON returned empty array");
   } catch (error) {
-    console.error("Quote API error:", error);
+    logger.error("Quote API error:", error);
     return {
       text: `Could not load quote: ${error instanceof Error ? error.message : "Unknown error"}`,
       author: "Error",

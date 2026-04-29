@@ -4,6 +4,7 @@ import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
 import { pushNotificationToHistory } from "@/app/actions/notifications";
+import { logger } from "@/lib/logger";
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -98,7 +99,7 @@ export async function triggerSafeWord(): Promise<{
       timestamp: Date.now(),
     });
   } catch (err) {
-    console.error("[safeword] Failed to write history:", err);
+    logger.error("[safeword] Failed to write history:", err);
   }
 
   // ── FCM — ALWAYS send, bypass ALL presence checks ─────────────────────────
@@ -137,10 +138,10 @@ export async function triggerSafeWord(): Promise<{
         },
       });
 
-      console.log("[safeword] FCM sent to", dom);
+      logger.info("[safeword] FCM sent to", { dom });
       return { success: true };
     } catch (err) {
-      console.error("[safeword] FCM failed:", err);
+      logger.error("[safeword] FCM failed:", err);
     }
   }
 
@@ -159,7 +160,7 @@ export async function triggerSafeWord(): Promise<{
         JSON.stringify(payload),
       );
     } catch (err) {
-      console.error("[safeword] Web Push failed:", err);
+      logger.error("[safeword] Web Push failed:", err);
     }
   }
 

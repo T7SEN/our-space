@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 // ── Notification ID ranges ────────────────────────────────────────────────────
 // Stable IDs prevent duplicate notifications when re-scheduling.
@@ -52,7 +53,7 @@ export function useLocalNotifications() {
       const { display } = await LocalNotifications.requestPermissions();
       return display === "granted";
     } catch (err) {
-      console.error("[local-notif] Permission request failed:", err);
+      logger.error("[local-notif] Permission request failed:", err);
       return false;
     }
   }, []);
@@ -83,7 +84,7 @@ export function useLocalNotifications() {
           ],
         });
       } catch (err) {
-        console.error("[local-notif] Schedule failed:", err);
+        logger.error("[local-notif] Schedule failed:", err);
       }
     },
     [],
@@ -101,7 +102,7 @@ export function useLocalNotifications() {
         notifications: ids.map((id) => ({ id })),
       });
     } catch (err) {
-      console.error("[local-notif] Cancel failed:", err);
+      logger.error("[local-notif] Cancel failed:", err);
     }
   }, []);
 

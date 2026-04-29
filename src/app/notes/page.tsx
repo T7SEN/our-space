@@ -62,6 +62,7 @@ import { useNetwork } from "@/hooks/use-network";
 import { useKeyboardHeight } from "@/hooks/use-keyboard";
 import { writeToClipboard } from "@/lib/clipboard";
 import { NoteReactions } from "@/components/notes/note-reactions";
+import { logger } from "@/lib/logger";
 
 declare let window: any;
 declare let document: any;
@@ -162,7 +163,7 @@ export default function NotesPage() {
       setNoteCount(count);
       setAuthorCounts(counts);
     } catch (err) {
-      console.error("[notes] Silent refresh failed:", err);
+      logger.error("[notes] Silent refresh failed:", err);
     }
   }, []);
 
@@ -224,7 +225,8 @@ export default function NotesPage() {
               0,
             );
           }
-        } catch {
+        } catch (error) {
+          logger.error("[notes] Failed to sync offline note:", error);
           /* will retry on next reconnect */
         }
       }
@@ -338,7 +340,7 @@ export default function NotesPage() {
           await (reg as any).sync.register("sync-notes");
         }
       } catch (err) {
-        console.warn("[notes] Sync registration failed:", err);
+        logger.warn("[notes] Sync registration failed:", { error: err });
       }
     }
   }, [composeContent, currentAuthor]);

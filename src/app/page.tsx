@@ -22,6 +22,7 @@ import {
   NOTIF_ID,
 } from "@/hooks/use-local-notifications";
 import { SafeWordCard } from "@/components/dashboard/safeword-card";
+import { logger } from "@/lib/logger";
 
 function DashboardSkeleton() {
   return (
@@ -73,7 +74,7 @@ export default function DashboardPage() {
           await scheduleMoodNudge();
         }
       } catch (err) {
-        console.error("[dashboard] Mood nudge sync failed:", err);
+        logger.error("[dashboard] Mood nudge sync failed:", err);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

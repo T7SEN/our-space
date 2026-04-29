@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
 import { MY_TZ } from "@/lib/constants";
 import { pushNotificationToHistory } from "@/app/actions/notifications";
+import { logger } from "@/lib/logger";
 
 export interface MoodData {
   myMood: string | null;
@@ -136,7 +137,7 @@ export async function submitMood(
     });
     return { success: true };
   } catch (error) {
-    console.error("[mood] Failed to submit mood:", error);
+    logger.error("[mood] Failed to submit mood:", error);
     return { error: "Failed to save mood." };
   }
 }
@@ -155,7 +156,7 @@ export async function submitState(
     });
     return { success: true };
   } catch (error) {
-    console.error("[mood] Failed to submit state:", error);
+    logger.error("[mood] Failed to submit state:", error);
     return { error: "Failed to save state." };
   }
 }
@@ -188,7 +189,7 @@ export async function sendHug(): Promise<{
 
     return { success: true };
   } catch (error) {
-    console.error("[mood] Failed to send hug:", error);
+    logger.error("[mood] Failed to send hug:", error);
     return { error: "Failed to send hug." };
   }
 }
@@ -270,7 +271,7 @@ async function sendHugPush(to: string, from: string): Promise<void> {
       timestamp: Date.now(),
     });
   } catch (err) {
-    console.error("[push] Failed to write hug notification history:", err);
+    logger.error("[push] Failed to write hug notification history:", err);
   }
 
   const isAppOpen = currentPage !== null;
@@ -312,10 +313,10 @@ async function sendHugPush(to: string, from: string): Promise<void> {
             }),
       });
 
-      console.log(`[push] Hug FCM sent to ${to}.`);
+      logger.info(`[push] Hug FCM sent to ${to}.`);
       return;
     } catch (err) {
-      console.error("[push] Hug FCM failed:", err);
+      logger.error("[push] Hug FCM failed:", err);
     }
   }
 
@@ -335,6 +336,6 @@ async function sendHugPush(to: string, from: string): Promise<void> {
       JSON.stringify(payload),
     );
   } catch (error) {
-    console.error("[mood] Web Push failed:", error);
+    logger.error("[mood] Web Push failed:", error);
   }
 }

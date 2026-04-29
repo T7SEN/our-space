@@ -31,6 +31,7 @@ import { START_DATE } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { useKeyboardHeight } from "@/hooks/use-keyboard";
+import { logger } from "@/lib/logger";
 
 const EMOJI_OPTIONS = [
   "✨",
@@ -123,7 +124,7 @@ export default function TimelinePage() {
     });
     getMilestones()
       .then(setMilestones)
-      .catch((err) => console.error("Failed to fetch milestones:", err));
+      .catch((err) => logger.error("Failed to fetch milestones:", err));
   }, [state]);
 
   const handleDelete = async (id: string) => {

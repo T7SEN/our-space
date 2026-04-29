@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { isNative } from "@/lib/native";
 import { useEffect, useState } from "react";
 
@@ -38,7 +39,7 @@ export function useKeyboardHeight(): number {
           setTimeout(() => setHeight(0), 0);
         });
       } catch (err) {
-        console.error("[keyboard] Failed to initialize listeners:", err);
+        logger.error("[keyboard] Failed to initialize listeners:", err);
       }
     })();
 

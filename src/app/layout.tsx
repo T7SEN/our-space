@@ -14,6 +14,7 @@ import { FCMProvider } from "@/components/fcm-provider";
 import { BiometricGate } from "@/components/biometric-gate";
 import { TopNavbar } from "@/components/navigation/top-navbar";
 import { PullToRefresh } from "@/components/pull-to-refresh";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
@@ -31,7 +32,6 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  // Allows the app to extend behind the status bar (required for safe-area-inset-top)
   viewportFit: "cover",
 };
 
@@ -79,29 +79,32 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <SerwistProvider swUrl="/serwist/sw.js">
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            forcedTheme="dark"
-            disableTransitionOnChange
-          >
-            <TooltipProvider>
-              <PullToRefresh />
-              <BiometricGate>
-                <PullToRefresh />
-                <TopNavbar />
-                {children}
-                <CapacitorInit />
-                <PushToast />
-                <FCMProvider />
-                <FloatingNavbar />
-              </BiometricGate>
-              <SpeedInsights />
-              <Analytics />
-            </TooltipProvider>
-          </ThemeProvider>
-        </SerwistProvider>
+        {/* 2. Wrap the entire React tree to catch Provider and UI crashes */}
+        <ErrorBoundary>
+          <SerwistProvider swUrl="/serwist/sw.js">
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="dark"
+              forcedTheme="dark"
+              disableTransitionOnChange
+            >
+              <TooltipProvider>
+                <BiometricGate>
+                  <PullToRefresh />
+                  <TopNavbar />
+                  {children}
+                  <CapacitorInit />
+                  <PushToast />
+                  <FCMProvider />
+                  <FloatingNavbar />
+                </BiometricGate>
+              </TooltipProvider>
+            </ThemeProvider>
+          </SerwistProvider>
+        </ErrorBoundary>
+
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

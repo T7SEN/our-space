@@ -4,6 +4,7 @@ import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
 import { type ReactionEmoji } from "@/lib/reaction-constants";
+import { logger } from "@/lib/logger";
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -50,7 +51,7 @@ export async function reactToNote(
     const all = await redis.hgetall<Record<string, string>>(key);
     return { reactions: all ?? {} };
   } catch (error) {
-    console.error("[reactions] Failed to react:", error);
+    logger.error("[reactions] Failed to react:", error);
     return { reactions: {}, error: "Failed to save reaction." };
   }
 }
@@ -78,7 +79,7 @@ export async function getReactionsForNotes(
     }
     return map;
   } catch (error) {
-    console.error("[reactions] Failed to fetch reactions:", error);
+    logger.error("[reactions] Failed to fetch reactions:", error);
     return {};
   }
 }

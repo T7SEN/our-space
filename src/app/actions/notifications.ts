@@ -3,6 +3,7 @@
 import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
+import { logger } from "@/lib/logger";
 
 export interface NotificationRecord {
   id: string;
@@ -41,7 +42,7 @@ export async function getNotificationHistory(): Promise<NotificationRecord[]> {
     );
     return records ?? [];
   } catch (error) {
-    console.error("[notifications] Failed to fetch history:", error);
+    logger.error("[notifications] Failed to fetch history:", error);
     return [];
   }
 }
@@ -67,7 +68,7 @@ export async function markAllNotificationsRead(): Promise<void> {
     }
     await pipeline.exec();
   } catch (error) {
-    console.error("[notifications] Failed to mark read:", error);
+    logger.error("[notifications] Failed to mark read:", error);
   }
 }
 
@@ -90,7 +91,7 @@ export async function pushNotificationToHistory(
     pipeline.ltrim(historyKey(author), 0, MAX_HISTORY - 1);
     await pipeline.exec();
   } catch (error) {
-    console.error("[notifications] Failed to push to history:", error);
+    logger.error("[notifications] Failed to push to history:", error);
   }
 }
 
@@ -101,6 +102,6 @@ export async function clearAllNotifications(): Promise<void> {
   try {
     await redis.del(historyKey(author));
   } catch (error) {
-    console.error("[notifications] Failed to clear history:", error);
+    logger.error("[notifications] Failed to clear history:", error);
   }
 }

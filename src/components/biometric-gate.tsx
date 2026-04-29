@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { vibrate } from "@/lib/haptic";
 import { isNative } from "@/lib/native";
 import { logout } from "@/app/actions/auth";
+import { logger } from "@/lib/logger";
 
 const LOCK_AFTER_MS = 30_000;
 const COLD_START_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
@@ -273,7 +274,7 @@ function BiometricGateInner({ children }: BiometricGateProps) {
         );
         removeListener = () => void listener.remove();
       } catch (err) {
-        console.error("[biometric] App listener failed:", err);
+        logger.error("[biometric] App listener failed:", err);
       }
     })();
 

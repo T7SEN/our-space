@@ -4,6 +4,7 @@ import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
+import { logger } from "@/lib/logger";
 
 export interface Milestone {
   id: string;
@@ -45,7 +46,7 @@ export async function getMilestones(): Promise<Milestone[]> {
 
     return rawMilestones.filter((m): m is Milestone => m !== null);
   } catch (error) {
-    console.error("[timeline] Failed to fetch milestones:", error);
+    logger.error("[timeline] Failed to fetch milestones:", error);
     return [];
   }
 }
@@ -87,7 +88,7 @@ export async function addMilestone(
     revalidatePath("/timeline");
     return { success: true };
   } catch (error) {
-    console.error("[timeline] Failed to add milestone:", error);
+    logger.error("[timeline] Failed to add milestone:", error);
     return { error: "Failed to save. Please try again." };
   }
 }
@@ -113,7 +114,7 @@ export async function deleteMilestone(
     revalidatePath("/timeline");
     return { success: true };
   } catch (error) {
-    console.error("[timeline] Failed to delete milestone:", error);
+    logger.error("[timeline] Failed to delete milestone:", error);
     return { error: "Failed to delete. Please try again." };
   }
 }

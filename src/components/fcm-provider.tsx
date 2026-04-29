@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { dispatchPushToast } from "@/components/push-toast";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 /**
  * Registers FCM listeners once at the layout level so they persist
@@ -45,7 +46,7 @@ export function FCMProvider() {
           permStatus = await PushNotifications.requestPermissions();
         }
         if (permStatus.receive !== "granted") {
-          console.warn(`[fcm] Permission not granted for ${author}.`);
+          logger.warn(`[fcm] Permission not granted for ${author}.`);
           return;
         }
 
@@ -57,7 +58,9 @@ export function FCMProvider() {
           "registration",
           async (token) => {
             if (cancelled) return;
-            console.log(`[fcm] Token received for ${author}:`, token.value);
+            logger.info(`[fcm] Token received for ${author}:`, {
+              token: token.value,
+            });
             try {
               const res = await fetch("/api/push/subscribe-fcm", {
                 method: "POST",
@@ -67,7 +70,7 @@ export function FCMProvider() {
               });
 
               if (!res.ok) {
-                console.error(
+                logger.error(
                   `[fcm] Server rejected token for ${author}:`,
                   res.status,
                 );
@@ -75,9 +78,9 @@ export function FCMProvider() {
               }
 
               registeredForAuthor.current = author;
-              console.log(`[fcm] Token stored for ${author}.`);
+              logger.info(`[fcm] Token stored for ${author}.`);
             } catch (err) {
-              console.error(`[fcm] Failed to store token for ${author}:`, err);
+              logger.error(`[fcm] Failed to store token for ${author}:`, err);
             }
           },
         );
@@ -88,9 +91,9 @@ export function FCMProvider() {
             // CRITICAL FOR HONOR DEVICES:
             // FCM will fire this if Play Services are missing. We catch it
             // gracefully to prevent unhandled promise rejections.
-            console.warn(
+            logger.warn(
               `[fcm] Registration error for ${author} (Likely No GMS):`,
-              err,
+              { error: err },
             );
           },
         );
@@ -138,10 +141,9 @@ export function FCMProvider() {
         // Attempt registration. Will throw on devices without GMS.
         await PushNotifications.register();
       } catch (err) {
-        console.warn(
-          `[fcm] Init failed for ${author} (Graceful Degradation):`,
-          err,
-        );
+        logger.warn(`[fcm] Init failed for ${author} (Graceful Degradation):`, {
+          error: err,
+        });
         // TODO: In the future, we can initialize standard Web Push Service Worker
         // here as a fallback mechanism for Besho's devices.
       }

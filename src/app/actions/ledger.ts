@@ -10,6 +10,7 @@ import {
   PUNISHMENT_CATEGORIES,
   type LedgerEntryType,
 } from "@/lib/ledger-constants";
+import { logger } from "@/lib/logger";
 
 export interface LedgerEntry {
   id: string;
@@ -115,7 +116,7 @@ async function sendLedgerNotification(
       JSON.stringify(payload),
     );
   } catch (err) {
-    console.error("[ledger] Notification failed:", err);
+    logger.error("[ledger] Notification failed:", err);
   }
 }
 
@@ -132,7 +133,7 @@ export async function getLedgerEntries(): Promise<LedgerEntry[]> {
     );
     return entries.filter((e): e is LedgerEntry => e !== null);
   } catch (error) {
-    console.error("[ledger] Failed to fetch:", error);
+    logger.error("[ledger] Failed to fetch:", error);
     return [];
   }
 }
@@ -192,7 +193,7 @@ export async function createLedgerEntry(
     revalidatePath("/ledger");
     return { success: true };
   } catch (error) {
-    console.error("[ledger] Failed to create:", error);
+    logger.error("[ledger] Failed to create:", error);
     return { error: "Failed to save entry." };
   }
 }
@@ -217,7 +218,7 @@ export async function deleteLedgerEntry(
     revalidatePath("/ledger");
     return { success: true };
   } catch (error) {
-    console.error("[ledger] Failed to delete:", error);
+    logger.error("[ledger] Failed to delete:", error);
     return { error: "Failed to delete entry." };
   }
 }

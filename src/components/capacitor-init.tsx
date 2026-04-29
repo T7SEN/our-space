@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useBadge } from "@/hooks/use-badge";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 /**
  * Initializes Capacitor native plugins on app start.
@@ -31,14 +32,14 @@ export function CapacitorInit() {
         await StatusBar.setStyle({ style: Style.Dark });
         await StatusBar.setBackgroundColor({ color: "#09090b" });
       } catch (err) {
-        console.error("[native] StatusBar init failed:", err);
+        logger.error("[native] StatusBar init failed:", err);
       }
 
       try {
         const { SplashScreen } = await import("@capacitor/splash-screen");
         await SplashScreen.hide({ fadeOutDuration: 300 });
       } catch (err) {
-        console.error("[native] SplashScreen hide failed:", err);
+        logger.error("[native] SplashScreen hide failed:", err);
       }
     })();
   }, []);
@@ -86,7 +87,7 @@ export function CapacitorInit() {
           ],
         });
       } catch (err) {
-        console.error("[local-notif] Init failed:", err);
+        logger.error("[local-notif] Init failed:", err);
       }
     })();
   }, []);

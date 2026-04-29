@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 const HEARTBEAT_INTERVAL_MS = 4_000;
 
@@ -14,7 +15,7 @@ async function setPresence(page: string): Promise<void> {
       credentials: "same-origin",
     });
   } catch (err) {
-    console.error("[presence] Failed to set presence:", err);
+    logger.error("[presence] Failed to set presence:", err);
   }
 }
 
@@ -22,11 +23,17 @@ async function clearPresence(): Promise<void> {
   try {
     await fetch("/api/presence", {
       method: "DELETE",
-      credentials: "same-origin",
       keepalive: true,
+      credentials: "same-origin",
     });
-  } catch {
-    // Best effort — TTL will expire it anyway
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+
+    if (msg.includes("Failed to fetch") || msg.includes("aborted")) {
+      logger.debug("[presence] Clear aborted during reload:", { error: msg });
+    } else {
+      logger.warn("[presence] Failed to clear presence:", { error: err });
+    }
   }
 }
 
@@ -63,7 +70,7 @@ export function usePresence(page: string, enabled: boolean) {
           );
           removeCapacitorListener = () => void listener.remove();
         } catch (err) {
-          console.error("[presence] Capacitor App listener failed:", err);
+          logger.error("[presence] Capacitor App listener failed:", err);
         }
       })();
     } else {

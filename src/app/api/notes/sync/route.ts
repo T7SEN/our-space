@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
+import { logger } from "@/lib/logger";
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: note.id });
   } catch (error) {
-    console.error("[sync] Failed to save offline note:", error);
+    logger.error("[sync] Failed to save offline note:", error);
     return NextResponse.json({ error: "Failed to save." }, { status: 500 });
   }
 }

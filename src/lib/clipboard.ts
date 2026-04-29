@@ -1,4 +1,5 @@
 import { isNative } from "@/lib/native";
+import { logger } from "./logger";
 
 /**
  * Writes text to the system clipboard.
@@ -19,7 +20,7 @@ export async function writeToClipboard(text: string): Promise<boolean> {
       await Clipboard.write({ string: text });
       return true;
     } catch (err) {
-      console.error("[clipboard] Capacitor write failed:", err);
+      logger.error("[clipboard] Capacitor write failed:", err);
     }
   }
 
@@ -37,7 +38,7 @@ export async function writeToClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch (err) {
-    console.error("[clipboard] navigator.clipboard failed:", err);
+    logger.error("[clipboard] navigator.clipboard failed:", err);
   }
 
   return false;
@@ -54,7 +55,7 @@ export async function readFromClipboard(): Promise<string | null> {
       const { type, value } = await Clipboard.read();
       return type === "text/plain" ? value : null;
     } catch (err) {
-      console.error("[clipboard] Capacitor read failed:", err);
+      logger.error("[clipboard] Capacitor read failed:", err);
     }
   }
 
@@ -70,7 +71,7 @@ export async function readFromClipboard(): Promise<string | null> {
       return await nav.clipboard.readText();
     }
   } catch (err) {
-    console.error("[clipboard] navigator.clipboard failed:", err);
+    logger.error("[clipboard] navigator.clipboard failed:", err);
   }
 
   return null;

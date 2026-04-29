@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { pushNotificationToHistory } from "@/app/actions/notifications";
+import { logger } from "@/lib/logger";
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
@@ -44,7 +45,7 @@ export async function getTasks(): Promise<Task[]> {
     const tasks = await redis.mget<(Task | null)[]>(...ids.map(taskKey));
     return tasks.filter((t): t is Task => t !== null);
   } catch (error) {
-    console.error("[tasks] Failed to fetch:", error);
+    logger.error("[tasks] Failed to fetch:", error);
     return [];
   }
 }
@@ -92,7 +93,7 @@ export async function createTask(
     revalidatePath("/tasks");
     return { success: true };
   } catch (error) {
-    console.error("[tasks] Failed to create:", error);
+    logger.error("[tasks] Failed to create:", error);
     return { error: "Failed to save task." };
   }
 }
@@ -127,7 +128,7 @@ export async function completeTask(
     revalidatePath("/tasks");
     return { success: true };
   } catch (error) {
-    console.error("[tasks] Failed to complete:", error);
+    logger.error("[tasks] Failed to complete:", error);
     return { error: "Failed to complete task." };
   }
 }
@@ -149,7 +150,7 @@ export async function deleteTask(
     revalidatePath("/tasks");
     return { success: true };
   } catch (error) {
-    console.error("[tasks] Failed to delete:", error);
+    logger.error("[tasks] Failed to delete:", error);
     return { error: "Failed to delete task." };
   }
 }
@@ -221,6 +222,6 @@ async function sendTaskNotification(
       });
     }
   } catch (err) {
-    console.error("[tasks] Notification failed:", err);
+    logger.error("[tasks] Notification failed:", err);
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 export type ConnectionType = "wifi" | "cellular" | "none" | "unknown";
 
@@ -50,7 +51,7 @@ export function useNetwork(): NetworkStatus {
         );
         handle = listener;
       } catch (err) {
-        console.error("[network] Capacitor init failed, using fallback:", err);
+        logger.error("[network] Capacitor init failed, using fallback:", err);
         initWeb();
       }
     };

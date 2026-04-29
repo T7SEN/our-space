@@ -1,5 +1,7 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 function getWeatherCondition(code: number): string {
   if (code === 0) return "Clear sky";
   if (code === 1 || code === 2 || code === 3) return "Partly cloudy";
@@ -63,7 +65,7 @@ export async function fetchRealWeather(): Promise<DualWeatherResponse> {
       },
     };
   } catch (error) {
-    console.error("Failed to fetch weather:", error);
+    logger.error("Failed to fetch weather:", error);
     return {
       myLocation: { temp: 0, condition: "Unavailable", high: 0, low: 0 },
       tabuk: { temp: 0, condition: "Unavailable", high: 0, low: 0 },

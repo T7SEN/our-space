@@ -18,6 +18,7 @@ import {
   type MoodOption,
 } from "@/lib/mood-constants";
 import { vibrate } from "@/lib/haptic";
+import { logger } from "@/lib/logger";
 
 const UNLOCKED_QUOTES = [
   "Distance means so little when someone means so much.",
@@ -82,7 +83,7 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
           setMoodData(data);
           setCardState(deriveCardState(data));
         })
-        .catch(console.error);
+        .catch(logger.error);
     };
     const id = setInterval(poll, 15_000);
     return () => clearInterval(id);

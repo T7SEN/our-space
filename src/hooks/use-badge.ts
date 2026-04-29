@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from "react";
 import { getNavBadges } from "@/app/actions/badges";
 import { isNative } from "@/lib/native";
+import { logger } from "@/lib/logger";
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1_000; // 5 minutes
 
@@ -34,7 +35,7 @@ export function useBadge(): void {
         await Badge.set({ count: total });
       }
     } catch (err) {
-      console.error("[badge] Sync failed:", err);
+      logger.error("[badge] Sync failed:", err);
     }
   }, []);
 
@@ -58,7 +59,7 @@ export function useBadge(): void {
         );
         removeAppListener = () => void listener.remove();
       } catch (err) {
-        console.error("[badge] App listener failed:", err);
+        logger.error("[badge] App listener failed:", err);
       }
     })();
 
@@ -70,8 +71,8 @@ export function useBadge(): void {
         try {
           const { Badge } = await import("@capawesome/capacitor-badge");
           await Badge.clear();
-        } catch {
-          /* ignore */
+        } catch (err) {
+          logger.error("[badge] Failed to clear badge:", err);
         }
       })();
     };

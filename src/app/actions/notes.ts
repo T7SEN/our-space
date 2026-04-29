@@ -7,6 +7,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
 import { pushNotificationToHistory } from "@/app/actions/notifications";
 import { getReactionsForNotes } from "@/app/actions/reactions";
+import { logger } from "@/lib/logger";
 
 export interface Note {
   id: string;
@@ -59,7 +60,7 @@ async function sendPushToUser(
     !process.env.VAPID_PUBLIC_KEY ||
     !process.env.VAPID_PRIVATE_KEY
   ) {
-    console.error("[push] Missing VAPID env vars.");
+    logger.error("[push] Missing VAPID env vars.");
     return;
   }
 
@@ -83,11 +84,11 @@ async function sendPushToUser(
       }
     }
     if (currentPage === payload.url) {
-      console.log(`[push] Skipping — ${toAuthor} is on ${payload.url}.`);
+      logger.info(`[push] Skipping — ${toAuthor} is on ${payload.url}.`);
       return;
     }
   } catch (err) {
-    console.warn("[push] Presence check failed, proceeding:", err);
+    logger.warn("[push] Presence check failed, proceeding:", { error: err });
   }
 
   const isAppOpen = currentPage !== null;
@@ -102,7 +103,7 @@ async function sendPushToUser(
       timestamp: Date.now(),
     });
   } catch (err) {
-    console.error("[push] Failed to write notification history:", err);
+    logger.error("[push] Failed to write notification history:", err);
   }
 
   // ── FCM (native Android) ──────────────────────────────────────────────────
@@ -145,17 +146,17 @@ async function sendPushToUser(
             }),
       });
 
-      console.log(`[push] FCM sent to ${toAuthor}.`);
+      logger.info(`[push] FCM sent to ${toAuthor}.`);
       return;
     } catch (err) {
-      console.error("[push] FCM failed, falling back to Web Push:", err);
+      logger.error("[push] FCM failed, falling back to Web Push:", err);
     }
   }
 
   // ── Web Push fallback (PWA) ───────────────────────────────────────────────
   const subscription = await redis.get(`push:subscription:${toAuthor}`);
   if (!subscription) {
-    console.log(`[push] No subscription for ${toAuthor}.`);
+    logger.info(`[push] No subscription for ${toAuthor}.`);
     return;
   }
 
@@ -171,7 +172,7 @@ async function sendPushToUser(
     JSON.stringify(payload),
   );
 
-  console.log(`[push] Web Push sent to ${toAuthor}.`);
+  logger.info(`[push] Web Push sent to ${toAuthor}.`);
 }
 
 // ─── Legacy migration ─────────────────────────────────────────────────────────
@@ -201,7 +202,7 @@ async function migrateLegacyNotes(): Promise<void> {
 
   await pipeline.exec();
   await redis.del(LEGACY_KEY);
-  console.log(`[notes] Migrated ${legacyNotes.length} legacy notes.`);
+  logger.info(`[notes] Migrated ${legacyNotes.length} legacy notes.`);
 }
 
 // ─── Author count initialization ─────────────────────────────────────────────
@@ -264,7 +265,7 @@ export async function getNotes(
 
     return { notes: notesWithReactions, hasMore };
   } catch (error) {
-    console.error("[notes] Failed to fetch notes:", error);
+    logger.error("[notes] Failed to fetch notes:", error);
     return { notes: [], hasMore: false };
   }
 }
@@ -357,12 +358,12 @@ export async function saveNote(prevState: unknown, formData: FormData) {
         url: "/notes",
       });
     } catch (pushError) {
-      console.error("[push] Failed to notify partner:", pushError);
+      logger.error("[push] Failed to notify partner:", pushError);
     }
 
     return { success: true };
   } catch (error) {
-    console.error("[notes] Failed to save note:", error);
+    logger.error("[notes] Failed to save note:", error);
     return { error: "Failed to save note. Please try again." };
   }
 }
@@ -402,7 +403,7 @@ export async function editNote(
     revalidatePath("/notes");
     return { success: true };
   } catch (error) {
-    console.error("[notes] Failed to edit note:", error);
+    logger.error("[notes] Failed to edit note:", error);
     return { error: "Failed to edit note. Please try again." };
   }
 }
@@ -437,7 +438,7 @@ export async function togglePinNote(
     revalidatePath("/notes");
     return { pinned: nowPinned };
   } catch (error) {
-    console.error("[notes] Failed to toggle pin:", error);
+    logger.error("[notes] Failed to toggle pin:", error);
     return { error: "Failed to pin note." };
   }
 }

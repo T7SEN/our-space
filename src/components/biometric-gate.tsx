@@ -1,22 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Fingerprint, Lock, KeyRound, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { vibrate } from "@/lib/haptic";
 import { isNative } from "@/lib/native";
+import { logout } from "@/app/actions/auth";
 
 const LOCK_AFTER_MS = 30_000;
+const COLD_START_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes (Adjust as desired)
 const ENROLLED_KEY = "biometric_enrolled";
-// Written by login/page.tsx after a successful password login so the
-// gate on the subsequent redirect to "/" skips auto-trigger.
 const SKIP_BIOMETRIC_KEY = "ourspace_skip_biometric";
-// Max consecutive non-cancel failures before forcing the password path.
 const MAX_AUTO_FAILURES = 2;
 
-// Routes where the gate must never activate.
 const UNGUARDED_ROUTES = ["/login"];
 
 type GateState =
@@ -50,7 +48,7 @@ function clearSessionFlag(key: string): void {
     ).sessionStorage;
     ss?.removeItem(key);
   } catch {
-    /* ignore */
+    // ignore
   }
 }
 
@@ -58,12 +56,6 @@ interface BiometricGateProps {
   children: React.ReactNode;
 }
 
-/**
- * Public export. Checks the current pathname first — unguarded routes
- * (e.g. /login) render children immediately without ever mounting the
- * gate logic. This prevents the loop where navigating to /login causes
- * the gate to re-trigger biometric on that page.
- */
 export function BiometricGate({ children }: BiometricGateProps) {
   const pathname = usePathname();
 
@@ -74,13 +66,11 @@ export function BiometricGate({ children }: BiometricGateProps) {
   return <BiometricGateInner>{children}</BiometricGateInner>;
 }
 
-/**
- * Inner gate — only mounts on guarded routes. Contains all hook logic.
- */
 function BiometricGateInner({ children }: BiometricGateProps) {
   const [gateState, setGateState] = useState<GateState>("checking");
   const [biometryLabel, setBiometryLabel] = useState("Biometrics");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const backgroundedAtRef = useRef<number | null>(null);
   const isAuthenticatingRef = useRef(false);
@@ -96,7 +86,6 @@ function BiometricGateInner({ children }: BiometricGateProps) {
     try {
       const { BiometricAuth, BiometryType } =
         await import("@aparajita/capacitor-biometric-auth");
-
       const { isAvailable, biometryType } = await BiometricAuth.checkBiometry();
 
       if (!isAvailable) {
@@ -133,6 +122,10 @@ function BiometricGateInner({ children }: BiometricGateProps) {
 
       const { Preferences } = await import("@capacitor/preferences");
       await Preferences.set({ key: ENROLLED_KEY, value: "true" });
+      await Preferences.set({
+        key: "last_unlocked_at",
+        value: Date.now().toString(),
+      });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : String(err ?? "unknown");
@@ -190,19 +183,33 @@ function BiometricGateInner({ children }: BiometricGateProps) {
         const { value } = await Preferences.get({ key: ENROLLED_KEY });
 
         if (value === "true") {
-          // Skip flag is set by login/page.tsx after a successful password
-          // login, so the post-redirect mount here goes straight to unlocked.
+          // 1. Check if we just logged in via password
           const shouldSkip = readSessionFlag(SKIP_BIOMETRIC_KEY);
           if (shouldSkip) {
             clearSessionFlag(SKIP_BIOMETRIC_KEY);
+            await Preferences.set({
+              key: "last_unlocked_at",
+              value: Date.now().toString(),
+            });
             setGateState("unlocked");
             return;
+          }
+
+          // 2. Check persistent grace period (prevents annoying cold-start loops)
+          const { value: lastUnlocked } = await Preferences.get({
+            key: "last_unlocked_at",
+          });
+          if (lastUnlocked) {
+            const elapsed = Date.now() - parseInt(lastUnlocked, 10);
+            if (elapsed < COLD_START_GRACE_PERIOD_MS) {
+              setGateState("unlocked");
+              return;
+            }
           }
 
           setGateState("locked");
           await authenticate();
         } else {
-          // Not yet enrolled — show lock screen, wait for tap
           setGateState("locked");
         }
       } catch {
@@ -224,11 +231,14 @@ function BiometricGateInner({ children }: BiometricGateProps) {
           "appStateChange",
           async ({ isActive }) => {
             if (!isActive) {
-              // Only record backgrounding when fully unlocked — prevents
-              // the biometric overlay dismissal from counting as a background
-              // event and immediately re-locking after a successful auth.
               if (gateState === "unlocked") {
                 backgroundedAtRef.current = Date.now();
+                // Refresh grace period timestamp when actively backgrounded
+                const { Preferences } = await import("@capacitor/preferences");
+                await Preferences.set({
+                  key: "last_unlocked_at",
+                  value: Date.now().toString(),
+                });
               }
               return;
             }
@@ -376,21 +386,25 @@ function BiometricGateInner({ children }: BiometricGateProps) {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       void vibrate(30, "light");
-                      (
-                        globalThis as unknown as {
-                          location: { href: string };
-                        }
-                      ).location.href = "/login";
+                      startTransition(() => {
+                        void logout();
+                      });
                     }}
+                    disabled={isPending}
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-6 py-2.5",
                       "text-xs font-bold uppercase tracking-wider",
                       "text-muted-foreground/50 transition-all",
                       "hover:bg-white/5 hover:text-muted-foreground",
+                      isPending && "opacity-50 cursor-not-allowed",
                     )}
                   >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    Use Password
+                    {isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <KeyRound className="h-3.5 w-3.5" />
+                    )}
+                    {isPending ? "Unlocking..." : "Use Password"}
                   </motion.button>
                 </div>
               )}

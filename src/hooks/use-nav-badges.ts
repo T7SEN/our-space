@@ -1,3 +1,4 @@
+// src/hooks/use-nav-badges.ts
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -6,7 +7,11 @@ import { isNative } from "@/lib/native";
 import { logger } from "@/lib/logger";
 
 const POLL_INTERVAL_MS = 30_000;
-const INITIAL: NavBadges = { pendingTasks: 0, unacknowledgedRules: 0 };
+const INITIAL: NavBadges = {
+  pendingTasks: 0,
+  unacknowledgedRules: 0,
+  openRituals: 0,
+};
 
 /**
  * Polls UI navigation badge counts.

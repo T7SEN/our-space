@@ -1,3 +1,4 @@
+// src/app/rules/page.tsx
 "use client";
 
 import {

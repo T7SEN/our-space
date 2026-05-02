@@ -1,3 +1,4 @@
+// src/components/navigation/floating-navbar.tsx
 "use client";
 
 import Link from "next/link";
@@ -9,6 +10,7 @@ import {
   CalendarClock,
   CheckSquare,
   ScrollText,
+  Sparkles,
   Award,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/rules",
     icon: ScrollText,
     badgeKey: "unacknowledgedRules",
+  },
+  {
+    name: "Rituals",
+    href: "/rituals",
+    icon: Sparkles,
+    badgeKey: "openRituals",
   },
   { name: "Ledger", href: "/ledger", icon: Award },
 ];

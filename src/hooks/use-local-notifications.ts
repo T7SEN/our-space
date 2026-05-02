@@ -1,16 +1,26 @@
+// src/hooks/use-local-notifications.ts
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { isNative } from "@/lib/native";
 import { logger } from "@/lib/logger";
 
 // ── Notification ID ranges ────────────────────────────────────────────────────
 // Stable IDs prevent duplicate notifications when re-scheduling.
 // Derive task/rule IDs from their string IDs using these offsets.
+//
+// Ritual reminders use a 2-tier scheme so that (ritualId, day) pairs don't
+// collide within the 7-day forward horizon: 112 ritual slots × 8 day slots
+// = 896 IDs in the band [3000, 3895]. `daysSinceEpoch % 8` is collision-free
+// for any 7 consecutive days.
 export const NOTIF_ID = {
   MOOD_NUDGE: 100,
   taskDeadline: (numericSuffix: number) => 1000 + (numericSuffix % 900),
   ruleAckDeadline: (numericSuffix: number) => 2000 + (numericSuffix % 900),
+  ritualReminder: (numericSuffix: number, daysSinceEpoch: number) =>
+    3000 + (numericSuffix % 112) * 8 + (daysSinceEpoch % 8),
+  RITUAL_BAND_START: 3000,
+  RITUAL_BAND_END: 3895,
 } as const;
 
 /**
@@ -31,6 +41,50 @@ export interface ScheduleNotificationOptions {
   body: string;
   /** Unix timestamp in milliseconds */
   atMs: number;
+  /**
+   * Optional in-app URL to navigate to when the user taps the
+   * notification. Stored on Capacitor's `extra` field and read by the
+   * action listener registered below.
+   */
+  url?: string;
+}
+
+// Module-level singleton for the `localNotificationActionPerformed`
+// listener. Capacitor allows multiple listeners but registering once is
+// cleaner and avoids duplicate navigation on tap.
+//
+// The hook calls `ensureActionListener()` from a one-time `useEffect`.
+// The promise gate makes concurrent first-render mounts converge on a
+// single registration without races.
+let actionListenerPromise: Promise<void> | null = null;
+
+function ensureActionListener(): Promise<void> {
+  if (actionListenerPromise) return actionListenerPromise;
+  actionListenerPromise = (async () => {
+    if (!isNative()) return;
+    try {
+      const { LocalNotifications } =
+        await import("@capacitor/local-notifications");
+      await LocalNotifications.addListener(
+        "localNotificationActionPerformed",
+        (action) => {
+          const extra = action.notification.extra as { url?: string } | null;
+          const url = extra?.url;
+          if (typeof url === "string" && url.length > 0) {
+            (
+              globalThis as unknown as { location: { href: string } }
+            ).location.href = url;
+          }
+        },
+      );
+    } catch (err) {
+      // Reset so a future caller can retry. Not strictly necessary —
+      // the failure mode is "tap doesn't deep-link" which is recoverable.
+      actionListenerPromise = null;
+      logger.error("[local-notif] Action listener register failed:", err);
+    }
+  })();
+  return actionListenerPromise;
 }
 
 /**
@@ -79,7 +133,7 @@ export function useLocalNotifications() {
               schedule: { at: new Date(options.atMs), allowWhileIdle: true },
               smallIcon: "ic_launcher_foreground",
               sound: undefined,
-              extra: null,
+              extra: options.url ? { url: options.url } : null,
             },
           ],
         });
@@ -135,6 +189,12 @@ export function useLocalNotifications() {
       atMs: target.getTime(),
     });
   }, [schedule]);
+
+  // Ensure the global tap-to-navigate listener is registered. Cheap on
+  // re-runs because `ensureActionListener` is a module-level singleton.
+  useEffect(() => {
+    void ensureActionListener();
+  }, []);
 
   return { requestPermission, schedule, cancel, scheduleMoodNudge };
 }

@@ -1,6 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ────────────────────────────────────────────────────────────────────────────
+# Dependencies
+# ────────────────────────────────────────────────────────────────────────────
 /node_modules
 /.pnp
 .pnp.*
@@ -10,48 +12,103 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ────────────────────────────────────────────────────────────────────────────
+# Build output
+# ────────────────────────────────────────────────────────────────────────────
 /.next/
 /out/
-
-# production
 /build
+*.tsbuildinfo
+next-env.d.ts
 
-# misc
-.DS_Store
-*.pem
+# ────────────────────────────────────────────────────────────────────────────
+# Testing
+# ────────────────────────────────────────────────────────────────────────────
+/coverage
 
-# debug
+# ────────────────────────────────────────────────────────────────────────────
+# Logs
+# ────────────────────────────────────────────────────────────────────────────
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# ────────────────────────────────────────────────────────────────────────────
+# Env files & secrets — DO NOT REMOVE
+# ────────────────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+.env.sentry-build-plugin
+.sentryclirc
 
-# vercel
+# Android signing / Firebase service accounts
+*.jks
+*.keystore
+*.p12
+*.pem
+.firebase/
+serviceAccountKey.json
+google-services.json
+GoogleService-Info.plist
+
+# TLS certificates
+/certificates/
+*.crt
+*.key
+
+# ────────────────────────────────────────────────────────────────────────────
+# Vercel
+# ────────────────────────────────────────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ────────────────────────────────────────────────────────────────────────────
+# Serwist / Service worker outputs (regenerated each build)
+# ────────────────────────────────────────────────────────────────────────────
+public/sw.js
+public/sw.js.map
+public/sw-*.js
+public/sw-*.js.map
+public/swe-*.js
+public/workbox-*.js
+public/workbox-*.js.map
 
+# ────────────────────────────────────────────────────────────────────────────
+# Capacitor — native shells are regenerated from capacitor.config.ts
+# ────────────────────────────────────────────────────────────────────────────
+android/
+ios/
+
+# ────────────────────────────────────────────────────────────────────────────
+# Stale scaffolding (no longer used; kept ignored to suppress false positives)
+# ────────────────────────────────────────────────────────────────────────────
 /src/generated/prisma
 
-certificates
+# ────────────────────────────────────────────────────────────────────────────
+# AI tooling — local agent caches & sessions, never shared
+# ────────────────────────────────────────────────────────────────────────────
+.claude/
+.cursor/
+.aider*
+.continue/
 
-# Serwist
-public/sw*
-.vercel
-.env*.local
+# ────────────────────────────────────────────────────────────────────────────
+# Editor & IDE
+# ────────────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
 
-# Capacitor
-android/
-.claude/*
-
-# Sentry Config File
-.env.sentry-build-plugin
+# ────────────────────────────────────────────────────────────────────────────
+# OS junk
+# ────────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/

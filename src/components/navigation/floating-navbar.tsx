@@ -14,6 +14,7 @@ import {
   ScrollText,
   Sparkles,
   Award,
+  MessageSquareQuote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavBadges } from "@/hooks/use-nav-badges";
@@ -54,6 +55,7 @@ const NAV_ITEMS: NavItem[] = [
     badgeKey: "openRituals",
   },
   { name: "Ledger", href: "/ledger", icon: Award },
+  { name: "Review", href: "/review", icon: MessageSquareQuote },
   { name: "Protocol", href: "/protocol", icon: BookOpen },
 ];
 
@@ -95,7 +97,6 @@ export function FloatingNavbar() {
               )}
 
               <span className="relative z-10 flex items-center gap-2">
-                {/* Icon with badge dot */}
                 <span className="relative">
                   <Icon className="h-4 w-4" />
                   <AnimatePresence>

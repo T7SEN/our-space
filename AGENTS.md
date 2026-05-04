@@ -99,6 +99,9 @@ These compile and lint clean but break at runtime, in SSR, or in React 19 strict
 - **`useSearchParams()` requires a `<Suspense>` boundary** — Next 16 prerender bails the whole route otherwise. Default-export wraps the inner component in `<Suspense fallback={...}><Inner /></Suspense>`.
 - **Optimistic UI uses snapshot-then-rollback** — `references/coding-patterns.md` § "Optimistic UI with Snapshot Rollback". Don't apply to create-paths.
 - **Unused params:** prefix with `_` and add `// eslint-disable-next-line @typescript-eslint/no-unused-vars` above the signature.
+- **`<TabsContent>` that holds form-bearing children must `forceMount`.** Radix unmounts inactive tabs by default; an unmounted `<input>`/`<textarea>` is missing from `FormData` on submit. The `RichTextEditor` Write tab uses `forceMount` for exactly this reason.
+- **Localized 1Hz tick.** Cards that need second-resolution time (`CounterCard`) own their `setInterval` internally. Never tick the dashboard parent — that re-renders the whole tree every second. Cards that need minute resolution (`TimezoneCard`) tick at 60s; cards that don't auto-update (Header, Birthday, Moon) call `new Date()` inline at render and rely on `refreshKey` re-renders for freshness.
+- **Active-press feedback on custom interactive surfaces.** Non-`<Button>` interactive elements (raw `<button>`, `<Link>`, navbar tiles) use `active:scale-[0.95]`. The shadcn `<Button>` primitive already has `active:translate-y-px` baked into its cva config — don't add scale on top.
 
 ---
 
@@ -150,8 +153,9 @@ Vercel auto-deploys on push to `main`. Required env vars: `AUTH_SECRET_KEY`, `KV
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # Providers, BiometricGate, navbars, FCMProvider
-│   ├── globals.css             # Tailwind v4 tokens
+│   ├── layout.tsx              # Providers, BiometricGate, navbars, FCMProvider, NavigationProgress
+│   ├── template.tsx            # Per-route enter animation with directional slide (ROUTE_ORDER)
+│   ├── globals.css             # Tailwind v4 tokens (incl. --author-daddy / --author-kitten)
 │   ├── page.tsx                # Dashboard
 │   ├── notes/                  # Notes feature + SSE consumer
 │   ├── rules/                  # Rules lifecycle
@@ -173,15 +177,16 @@ src/
 │   ├── sentry-user-provider.tsx
 │   ├── push-toast.tsx
 │   ├── pull-to-refresh.tsx
+│   ├── navigation-progress.tsx # Top progress bar that fires on internal link clicks
 │   ├── capacitor-init.tsx
 │   ├── theme-provider.tsx
 │   ├── global-logger.tsx
-│   ├── navigation/             # top-navbar, floating-navbar
-│   ├── dashboard/              # Cards: Mood, Counter, Weather, Moon, Distance, Quote, SafeWord, Birthday
+│   ├── navigation/             # top-navbar, floating-navbar (5 primary tabs + More sheet)
+│   ├── dashboard/              # Cards: Mood, Counter, Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
 │   ├── review/                 # Form, reveal card, summary panel, history drawer
-│   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary
-├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges
-├── lib/                        # auth-utils, cairo-time, native, haptic, clipboard, logger, constants, *-constants
+│   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary, Sheet
+├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges, use-pull-to-refresh
+├── lib/                        # auth-utils, cairo-time, native, haptic, clipboard, logger, constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
 └── instrumentation.ts          # Sentry
 ```
 

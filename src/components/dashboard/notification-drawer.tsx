@@ -123,7 +123,7 @@ export function NotificationDrawer() {
           aria-label={isOpen ? "Close notifications" : "Notification history"}
           title={isOpen ? "Close" : "Notifications"}
           className={cn(
-            "rounded-full p-2 transition-all",
+            "rounded-full p-2 transition-all active:scale-95",
             unreadCount > 0
               ? "text-primary hover:bg-primary/10"
               : "text-muted-foreground/30 hover:bg-muted/20 hover:text-muted-foreground",
@@ -203,7 +203,8 @@ export function NotificationDrawer() {
                       )}
                       <button
                         onClick={handleClose}
-                        className="rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-muted/20 hover:text-muted-foreground"
+                        aria-label="Close notifications"
+                        className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-muted/20 hover:text-muted-foreground active:scale-95"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>

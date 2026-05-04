@@ -10,8 +10,12 @@ const ROUTE_ORDER: Record<string, number> = {
   "/notes": 1,
   "/timeline": 2,
   "/tasks": 3,
-  "/rules": 4,
-  "/ledger": 5,
+  "/permissions": 4,
+  "/rituals": 5,
+  "/rules": 6,
+  "/ledger": 7,
+  "/review": 8,
+  "/protocol": 9,
 };
 
 function getRouteIndex(pathname: string): number {

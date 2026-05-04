@@ -262,7 +262,7 @@ function ProtocolPageInner() {
   );
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-purple-500/5 blur-[150px]" />

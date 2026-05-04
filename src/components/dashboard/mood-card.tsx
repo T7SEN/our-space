@@ -17,6 +17,7 @@ import {
   DOM_STATE_OPTIONS,
   type MoodOption,
 } from "@/lib/mood-constants";
+import { AUTHOR_COLORS, partnerOf, type Author } from "@/lib/constants";
 import { vibrate } from "@/lib/haptic";
 import { logger } from "@/lib/logger";
 
@@ -59,6 +60,11 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
   const stateOptions: MoodOption[] = isPartner
     ? SUB_STATE_OPTIONS
     : DOM_STATE_OPTIONS;
+
+  const myAuthor = currentAuthor as Author | null;
+  const partnerAuthor = myAuthor ? partnerOf(myAuthor) : null;
+  const myColor = myAuthor ? AUTHOR_COLORS[myAuthor] : null;
+  const partnerColor = partnerAuthor ? AUTHOR_COLORS[partnerAuthor] : null;
 
   const deriveCardState = useCallback((data: MoodData): CardState => {
     if (data.myMood && data.partnerMood) {
@@ -170,9 +176,17 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex h-24 items-center justify-center"
+              className="space-y-3"
             >
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+              <div className="h-3 w-40 animate-pulse rounded bg-muted/30" />
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-11 w-full animate-pulse rounded-xl bg-muted/20"
+                  />
+                ))}
+              </div>
             </motion.div>
           )}
 
@@ -269,7 +283,12 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
               <div className="flex items-center justify-center gap-6">
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-5xl">{moodData?.myMood}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-wider",
+                      myColor?.textSoft ?? "text-foreground/40",
+                    )}
+                  >
                     You
                   </span>
                 </div>
@@ -279,7 +298,12 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
                 />
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-5xl">{moodData?.partnerMood}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary/60">
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-wider",
+                      partnerColor?.textSoft ?? "text-primary/60",
+                    )}
+                  >
                     Them
                   </span>
                 </div>
@@ -394,11 +418,19 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-3 py-2",
+                partnerColor?.bgSoft ?? "bg-primary/5",
+              )}
             >
               <span className="text-lg">{partnerStateEmoji}</span>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-primary/60">
+                <p
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider",
+                    partnerColor?.textSoft ?? "text-primary/60",
+                  )}
+                >
                   {isPartner ? "Sir is" : "Besho is"}
                 </p>
                 <p className="text-xs font-semibold text-foreground/60">

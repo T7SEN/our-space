@@ -57,8 +57,8 @@ function getMoonPhase(date: Date): MoonData {
   return { phase, name, emoji, illumination };
 }
 
-export function MoonPhaseCard({ now }: { now: Date }) {
-  const moon = getMoonPhase(now);
+export function MoonPhaseCard() {
+  const moon = getMoonPhase(new Date());
 
   const isFullMoon = moon.phase >= 0.4375 && moon.phase < 0.5625;
   const isNewMoon = moon.phase < 0.0625 || moon.phase >= 0.9375;

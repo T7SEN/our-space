@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { History } from "lucide-react";
 import { getMoodHistory, type MoodHistoryEntry } from "@/app/actions/mood";
 import { cn } from "@/lib/utils";
+import { AUTHOR_COLORS, partnerOf, type Author } from "@/lib/constants";
 
 interface MoodHistoryGridProps {
   currentAuthor: string | null;
@@ -45,6 +46,12 @@ export function MoodHistoryGrid({ currentAuthor }: MoodHistoryGridProps) {
   }, []);
 
   const isPartner = currentAuthor === "Besho";
+  const myAuthor = currentAuthor as Author | null;
+  const partnerAuthor = myAuthor ? partnerOf(myAuthor) : null;
+  const myDot = myAuthor ? AUTHOR_COLORS[myAuthor].bg : "bg-foreground/30";
+  const partnerDot = partnerAuthor
+    ? AUTHOR_COLORS[partnerAuthor].bg
+    : "bg-foreground/20";
 
   if (isLoading) {
     return (
@@ -152,11 +159,11 @@ export function MoodHistoryGrid({ currentAuthor }: MoodHistoryGridProps) {
       {/* Legend */}
       <div className="mt-3 flex items-center justify-end gap-3">
         <span className="flex items-center gap-1 text-[9px] text-muted-foreground/30">
-          <div className="h-2 w-2 rounded-full bg-foreground/30" />
-          {isPartner ? "You" : "Besho (top)"}
+          <div className={cn("h-2 w-2 rounded-full", myDot)} />
+          You (top)
         </span>
         <span className="flex items-center gap-1 text-[9px] text-muted-foreground/30">
-          <div className="h-2 w-2 rounded-full bg-foreground/20" />
+          <div className={cn("h-2 w-2 rounded-full", partnerDot)} />
           {isPartner ? "Sir (bottom)" : "Besho (bottom)"}
         </span>
       </div>

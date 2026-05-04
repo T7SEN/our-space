@@ -22,12 +22,14 @@ import {
   NOTIF_ID,
 } from "@/hooks/use-local-notifications";
 import { SafeWordCard } from "@/components/dashboard/safeword-card";
+import { TodayStrip } from "@/components/dashboard/today-strip";
 import { logger } from "@/lib/logger";
 
 function DashboardSkeleton() {
   return (
-    <div className="grid animate-pulse grid-cols-1 gap-6 md:grid-cols-12">
+    <div className="grid animate-pulse grid-cols-1 gap-4 md:grid-cols-12 md:gap-6">
       <div className="h-40 rounded-3xl bg-muted/20 md:col-span-12" />
+      <div className="h-16 rounded-3xl bg-muted/20 md:col-span-12" />
       <div className="h-64 rounded-3xl bg-muted/20 md:col-span-8" />
       <div className="h-64 rounded-3xl bg-muted/20 md:col-span-4" />
       <div className="h-24 rounded-3xl bg-muted/20 md:col-span-12" />
@@ -42,7 +44,7 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
-  const [now, setNow] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [currentAuthor, setCurrentAuthor] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -83,33 +85,36 @@ export default function DashboardPage() {
   useEffect(() => {
     getCurrentAuthor().then(setCurrentAuthor);
     setTimeout(() => {
-      setNow(new Date());
+      setMounted(true);
     }, 0);
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const isT7SEN = currentAuthor === "T7SEN";
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/8 blur-[160px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-blue-500/5 blur-[160px]" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl space-y-8 pb-32">
-        <Header now={now ?? new Date()} author={currentAuthor} />
+      <div className="relative z-10 mx-auto max-w-6xl space-y-8 pb-28 md:pb-32">
+        <Header author={currentAuthor} />
 
-        {!now ? (
+        {!mounted ? (
           <DashboardSkeleton />
         ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-12 md:items-stretch">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-6 md:items-stretch">
             {/* ── Row 1: Counter — full width, hero ── */}
             <div className="md:col-span-12">
-              <CounterCard now={now} />
+              <CounterCard />
+            </div>
+
+            {/* ── Row 1.5: Today's attention strip ── */}
+            <div className="md:col-span-12">
+              <ErrorBoundary label="TodayStrip">
+                <TodayStrip key={refreshKey} />
+              </ErrorBoundary>
             </div>
 
             {/* ── Row 2: Mood (8 cols) + Birthday (4 cols) ── */}
@@ -119,7 +124,7 @@ export default function DashboardPage() {
               </ErrorBoundary>
             </div>
             <div className="md:col-span-4 md:h-full">
-              <BirthdayCard now={now} />
+              <BirthdayCard />
             </div>
 
             {/* ── Row 3: Mood history — full width ── */}
@@ -134,7 +139,7 @@ export default function DashboardPage() {
 
             {/* ── Row 4: Timezone | Weather | Moon ── */}
             <div className="md:col-span-4 md:h-full">
-              <TimezoneCard now={now} />
+              <TimezoneCard />
             </div>
             <div className="md:col-span-4 md:h-full">
               <ErrorBoundary label="WeatherCard">
@@ -142,7 +147,7 @@ export default function DashboardPage() {
               </ErrorBoundary>
             </div>
             <div className="md:col-span-4 md:h-full">
-              <MoonPhaseCard now={now} />
+              <MoonPhaseCard />
             </div>
 
             {/* ── Row 5: Distance | Quote ── */}

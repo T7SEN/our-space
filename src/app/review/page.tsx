@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import { ArrowLeft, Loader2, MessageSquareQuote } from "lucide-react";
+import { ArrowLeft, MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getReviewBundle } from "@/app/actions/reviews";
 import { getCurrentAuthor } from "@/app/actions/auth";
@@ -85,7 +85,7 @@ function ReviewPageInner() {
     targetWeek !== undefined && targetWeek !== currentReviewWeekDate(now);
 
   return (
-    <div className="relative min-h-screen bg-background p-6 pb-32 md:p-12 md:pb-32">
+    <div className="relative min-h-screen bg-background p-4 pb-28 md:p-12 md:pb-32">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-primary/3 blur-[150px]" />
@@ -288,13 +288,44 @@ function ClosedCard({ bundle }: { bundle: ReviewBundle }) {
 function ReviewSkeleton() {
   return (
     <div className="space-y-6">
+      {/* StateCard placeholder */}
       <div
         className={cn(
-          "flex items-center justify-center rounded-3xl border border-white/5",
-          "bg-card/40 p-12 backdrop-blur-xl shadow-xl shadow-black/20",
+          "flex flex-col gap-4 rounded-3xl border border-white/5",
+          "bg-card/40 p-6 backdrop-blur-xl shadow-xl shadow-black/20 sm:p-8",
         )}
       >
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+        <div className="h-3 w-24 animate-pulse rounded bg-muted/30" />
+        <div className="h-5 w-3/5 animate-pulse rounded bg-muted/30" />
+        <div className="space-y-2 pt-2">
+          <div className="h-3 w-full animate-pulse rounded bg-muted/20" />
+          <div className="h-3 w-5/6 animate-pulse rounded bg-muted/20" />
+          <div className="h-3 w-4/5 animate-pulse rounded bg-muted/15" />
+        </div>
+        <div className="mt-2">
+          <div className="h-9 w-28 animate-pulse rounded-full bg-muted/30" />
+        </div>
+      </div>
+
+      {/* Summary panel placeholder */}
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-3xl border border-white/5",
+          "bg-card/40 p-5 backdrop-blur-xl shadow-xl shadow-black/20",
+        )}
+      >
+        <div className="h-3 w-32 animate-pulse rounded bg-muted/30" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-12 animate-pulse rounded-xl bg-muted/20" />
+          <div className="h-12 animate-pulse rounded-xl bg-muted/20" />
+          <div className="h-12 animate-pulse rounded-xl bg-muted/20" />
+          <div className="h-12 animate-pulse rounded-xl bg-muted/20" />
+        </div>
+      </div>
+
+      {/* History drawer trigger placeholder */}
+      <div className="flex justify-center">
+        <div className="h-9 w-32 animate-pulse rounded-full bg-muted/20" />
       </div>
     </div>
   );

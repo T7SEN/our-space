@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -9,8 +9,14 @@ import { vibrate } from "@/lib/haptic";
 
 type TimeUnitKey = "years" | "months" | "days" | "hours" | "mins" | "secs";
 
-export function CounterCard({ now }: { now: Date }) {
+export function CounterCard() {
   const [activeUnit, setActiveUnit] = useState<TimeUnitKey>("days");
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const diff = now.getTime() - START_DATE.getTime();
 

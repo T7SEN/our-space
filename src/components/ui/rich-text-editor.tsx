@@ -6,6 +6,7 @@ import { MarkdownRenderer } from "./markdown-renderer";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, isArabic } from "@/lib/utils";
+import { vibrate } from "@/lib/haptic";
 
 export interface RichTextEditorProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   minHeight?: string;
@@ -53,7 +54,11 @@ export const RichTextEditor = forwardRef<
 
     return (
       <div className={cn("flex w-full flex-col gap-2", className)}>
-        <Tabs defaultValue="write" className="w-full">
+        <Tabs
+          defaultValue="write"
+          className="w-full"
+          onValueChange={() => void vibrate(20, "light")}
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="write" disabled={disabled}>
               Write

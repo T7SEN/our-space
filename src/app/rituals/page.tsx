@@ -65,6 +65,7 @@ import { dateKeyInTz, tzWallClockToUtcMs } from "@/lib/cairo-time";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
+import { hideKeyboard } from "@/lib/keyboard";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -471,7 +472,7 @@ export default function RitualsPage() {
   const completedTodayCount = grouped.completed_today.length;
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-purple-500/5 blur-[150px]" />
@@ -970,6 +971,7 @@ function SubmitForm({
     if (state?.success) {
       setTimeout(() => {
         void vibrate(50, "medium");
+        void hideKeyboard();
         void onSuccess();
       }, 0);
     }
@@ -1065,6 +1067,7 @@ function RitualForm({
 
   useEffect(() => {
     if (state?.success) {
+      void hideKeyboard();
       onSuccess();
     }
   }, [state, onSuccess]);
@@ -1576,7 +1579,7 @@ function HistoryDotRow({
                 <button
                   type="button"
                   onClick={() => setExpandedDateKey(null)}
-                  className="rounded-full p-1 text-muted-foreground/50 hover:text-foreground"
+                  className="rounded-full p-2 text-muted-foreground/50 transition-colors hover:bg-white/5 hover:text-foreground active:scale-95"
                   aria-label="Dismiss"
                 >
                   <X className="h-3 w-3" />

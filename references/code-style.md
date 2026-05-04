@@ -62,7 +62,12 @@ Consolidated reference for the conventions agents must follow when writing or ed
 
 - **Tailwind v4.** Tokens in `src/app/globals.css` as CSS variables. No `tailwind.config.*` file.
 - **Dark theme is forced** (`forcedTheme="dark"`). No light-mode variants.
-- **Mobile-first.** `FloatingNavbar` is fixed; account for `pb-24` on long pages.
+- **Mobile-first padding defaults:**
+  - Page wrappers: `p-4 md:p-12`
+  - Card grids: `gap-4 md:gap-6`
+  - Floating-navbar clearance: `pb-28 md:pb-32` on dashboard / `/review`
+- **Author identity color** lives in `AUTHOR_COLORS` in `src/lib/constants.ts`, backed by `--author-daddy` and `--author-kitten` tokens in `globals.css`. Use the typed map (`AUTHOR_COLORS[author].text` / `bg` / `border` / etc.) — never interpolate (`bg-author-${author}`); Tailwind v4's scanner won't find dynamic class strings.
+- **Skeletons match the shape of the eventual content.** No center spinners for page-level loads — every feature page uses `animate-pulse` placeholders shaped like the loaded layout. Inline `Loader2 animate-spin` is correct on action buttons (save, send, decide); incorrect as a route-level loading state.
 - WCAG AA contrast minimum.
 - **Motion:** `motion/react`. Standard entry: `initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}`.
 

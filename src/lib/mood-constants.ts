@@ -13,7 +13,7 @@ export const DAILY_MOOD_OPTIONS: MoodOption[] = [
   { emoji: "😤", label: "Annoyed" },
   { emoji: "🥰", label: "Warm" },
   { emoji: "😂", label: "Playful" },
-  { emoji: "🌟", label: "Great" },
+  { emoji: "🥵", label: "Horny" },
   { emoji: "😌", label: "Calm" },
   { emoji: "🤗", label: "Cuddly" },
 ];

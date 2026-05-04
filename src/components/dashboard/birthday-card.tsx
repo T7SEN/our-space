@@ -96,7 +96,8 @@ function getDaysLeft(now: Date, month: number, day: number): number {
   return Math.round((next.getTime() - today.getTime()) / 86_400_000);
 }
 
-export function BirthdayCard({ now }: { now: Date }) {
+export function BirthdayCard() {
+  const now = new Date();
   const myDaysLeft = getDaysLeft(now, BIRTHDAYS.me.month, BIRTHDAYS.me.day);
   const partnerDaysLeft = getDaysLeft(
     now,

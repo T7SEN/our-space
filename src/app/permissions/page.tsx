@@ -68,6 +68,7 @@ import { TITLE_BY_AUTHOR } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
+import { hideKeyboard } from "@/lib/keyboard";
 import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -365,7 +366,7 @@ export default function PermissionsPage() {
 
   return (
     <div
-      className="relative min-h-screen bg-background p-6 md:p-12"
+      className="relative min-h-screen bg-background p-4 md:p-12"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -1778,6 +1779,7 @@ function QuotaModal({
 
   useEffect(() => {
     if (state?.success) {
+      void hideKeyboard();
       void onSaved();
       onClose();
     }
@@ -2266,7 +2268,7 @@ function AutoRuleCard({
             onClick={onMoveUp}
             disabled={index === 0 || isBusy || undefined}
             aria-label="Move rule up"
-            className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-30"
+            className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-foreground active:scale-95 disabled:opacity-30"
           >
             <ChevronUp className="h-3 w-3" />
           </button>
@@ -2278,7 +2280,7 @@ function AutoRuleCard({
             onClick={onMoveDown}
             disabled={index === total - 1 || isBusy || undefined}
             aria-label="Move rule down"
-            className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-foreground disabled:opacity-30"
+            className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-white/5 hover:text-foreground active:scale-95 disabled:opacity-30"
           >
             <ChevronDown className="h-3 w-3" />
           </button>
@@ -2340,7 +2342,7 @@ function AutoRuleCard({
               onClick={onAskDelete}
               disabled={isBusy || undefined}
               aria-label="Delete rule"
-              className="rounded-full p-1 text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+              className="rounded-full p-2 text-muted-foreground/60 transition-colors hover:bg-rose-500/10 hover:text-rose-300 active:scale-95"
             >
               <Trash2 className="h-3 w-3" />
             </button>

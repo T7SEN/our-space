@@ -13,6 +13,7 @@ import { FCMProvider } from "@/components/fcm-provider";
 import { BiometricGate } from "@/components/biometric-gate";
 import { TopNavbar } from "@/components/navigation/top-navbar";
 import { PullToRefresh } from "@/components/pull-to-refresh";
+import { NavigationProgress } from "@/components/navigation-progress";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { GlobalLogger } from "@/components/global-logger";
 import { SentryUserProvider } from "@/components/sentry-user-provider";
@@ -101,6 +102,7 @@ export default function RootLayout({
             <TooltipProvider>
               <BiometricGate>
                 <PullToRefresh />
+                <NavigationProgress />
                 <TopNavbar />
                 {children}
                 <CapacitorInit />

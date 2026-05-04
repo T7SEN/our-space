@@ -631,13 +631,230 @@ Pair with an offline banner that informs the user why the button is disabled. Th
 
 ---
 
+## 19. `<TabsContent>` Holding Form Inputs Must `forceMount`
+
+Radix Tabs unmounts inactive `<TabsContent>` by default. When the user submits a form while a different tab is active, the form-bearing input is not in the DOM — and native HTML form submission only collects values from elements present at submit time. The server action receives `null` and renders nothing.
+
+### Wrong
+
+```tsx
+<Tabs defaultValue="write">
+  <TabsList>
+    <TabsTrigger value="write">Write</TabsTrigger>
+    <TabsTrigger value="preview">Preview</TabsTrigger>
+  </TabsList>
+  <TabsContent value="write">
+    <textarea name="content" />
+  </TabsContent>
+  <TabsContent value="preview">{/* read-only */}</TabsContent>
+</Tabs>
+```
+
+Submit from the Preview tab → `formData.get('content')` is `null`.
+
+### Right
+
+```tsx
+<TabsContent value="write" forceMount>
+  <textarea name="content" />
+</TabsContent>
+```
+
+`forceMount` keeps the textarea in the DOM at all times. Radix applies `hidden` to inactive forceMounted content; `FormData` still picks up the value because `hidden` is purely visual. The Preview tab does not need `forceMount` — it's display-only.
+
+### Edge
+
+Browsers skip native `required` validation on `hidden` elements. Submitting an empty `required` field from the Preview tab will not fire the validation bubble. Server-side validation must reject empty bodies regardless. This is acceptable because server-side validation is the source of truth in this codebase.
+
+### Canonical example
+
+`src/components/ui/rich-text-editor.tsx` — Write tab uses `forceMount`.
+
+---
+
+## 20. Bottom Sheets Use the Dialog Primitive Directly
+
+The shadcn `Sheet` helper at `src/components/ui/sheet.tsx` is fine for static sheets. For a drag-to-dismiss bottom sheet, bypass `<SheetContent>` and use `radix-ui`'s `Dialog` primitive directly via `asChild` on a `motion.div`. This is the only way to attach `motion`'s drag gestures to the Radix-positioned content.
+
+### Pattern
+
+```tsx
+import { Dialog as SheetPrimitive } from "radix-ui";
+import { Sheet, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { AnimatePresence, motion, type PanInfo } from "motion/react";
+
+<Sheet open={open} onOpenChange={setOpen}>
+  <AnimatePresence>
+    {open && (
+      <SheetPrimitive.Portal forceMount>
+        <SheetPrimitive.Overlay asChild forceMount>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40"
+          />
+        </SheetPrimitive.Overlay>
+        <SheetPrimitive.Content asChild forceMount>
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 1 }}
+            dragMomentum={false}
+            onDragEnd={(_, info: PanInfo) => {
+              if (info.offset.y > 100 || info.velocity.y > 500) {
+                void vibrate(50, "medium");
+                setOpen(false);
+              }
+            }}
+            className={cn(
+              "fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-black/80",
+              "pb-[max(env(safe-area-inset-bottom),1rem)] touch-none",
+            )}
+          >
+            <SheetTitle className="sr-only">…</SheetTitle>
+            <SheetDescription className="sr-only">…</SheetDescription>
+            {/* content */}
+          </motion.div>
+        </SheetPrimitive.Content>
+      </SheetPrimitive.Portal>
+    )}
+  </AnimatePresence>
+</Sheet>
+```
+
+### Why this shape
+
+- `dragConstraints={{ top: 0, bottom: 0 }}` pins rest position to `y: 0`.
+- `dragElastic={{ top: 0, bottom: 1 }}` is rigid upward, 1:1 follow downward (motion v12 supports the per-axis object form via `Partial<BoundingBox>`).
+- `dragMomentum={false}` prevents fling-throw — release commits to either close or spring-back, no in-between drift.
+- `forceMount` + `AnimatePresence` lets motion run the exit animation; otherwise Radix unmounts immediately and the slide-out is dropped.
+- `touch-none` blocks browser overscroll/pull-to-refresh from competing with the drag.
+- `SheetTitle`/`SheetDescription` are required by Radix Dialog for a11y; use `sr-only` if the visible header doesn't need them.
+
+### Pull-to-refresh interaction
+
+`use-pull-to-refresh.ts` checks `target.closest('[role="dialog"]')` in its touchstart handler and bails when true. Any drag-to-dismiss sheet built on Radix Dialog is automatically immune from triggering page-level PTR — no per-sheet wiring needed.
+
+### Caveat
+
+`touch-none` on the sheet body blocks vertical scroll inside the sheet. If the sheet ever needs scrollable content, switch to drag-only-from-the-handle (`useDragControls().start(event)` on the header `onPointerDown`, drag wired to a parent that doesn't have `touch-none`).
+
+### Canonical example
+
+`src/components/navigation/floating-navbar.tsx` — More sheet.
+
+---
+
+## 21. Localized 1Hz Tick
+
+A `setInterval(setNow, 1000)` at the dashboard parent re-renders the entire tree every second. Cards that don't need second-resolution time still re-render — wasteful on Android.
+
+### Wrong
+
+```tsx
+// src/app/page.tsx
+const [now, setNow] = useState<Date | null>(null);
+useEffect(() => {
+  setNow(new Date());
+  const id = setInterval(() => setNow(new Date()), 1000);
+  return () => clearInterval(id);
+}, []);
+
+return <CounterCard now={now} />;
+```
+
+### Right
+
+```tsx
+// src/app/page.tsx
+const [mounted, setMounted] = useState(false);
+useEffect(() => {
+  setTimeout(() => setMounted(true), 0);
+}, []);
+
+if (!mounted) return <DashboardSkeleton />;
+return <CounterCard />;
+```
+
+```tsx
+// src/components/dashboard/counter-card.tsx
+export function CounterCard() {
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  // ...
+}
+```
+
+### Tick-frequency by card
+
+- **`CounterCard`** — 1s tick (shows seconds).
+- **`TimezoneCard`** — 60s tick (only minutes shown, no need for second resolution).
+- **Header / Birthday / Moon** — no tick. Call `new Date()` inline at render. They re-render when `refreshKey` changes (pull-to-refresh) or when their parent re-renders for any other reason.
+
+### Trade-off
+
+Header greeting, BirthdayCard days-left, and MoonPhaseCard drift if the dashboard stays open across an hour boundary or midnight. Pull-to-refresh fixes it. Acceptable for this app's usage pattern; if drift becomes a real complaint, add a low-frequency parent tick at 60s+ instead of restoring the 1Hz one.
+
+### Lazy initializer is the safe pattern
+
+`useState<Date>(() => new Date())` runs the initializer once on the client's first render. Compare to `useState(new Date())` which evaluates `new Date()` on every render before discarding all but the first — wasteful and triggers SSR/client mismatch warnings if the component is ever rendered server-side.
+
+---
+
+## 22. Active-Press Feedback for Custom Interactive Surfaces
+
+On a hosted-webapp every navigation is a real network round-trip. Without an immediate visual response to taps, users wonder if the tap registered.
+
+### Right
+
+```tsx
+// Custom interactive surfaces (raw button, Link, navbar tile)
+className={cn(
+  "...",
+  "active:scale-[0.95]",
+)}
+```
+
+### When NOT to add
+
+The shadcn `<Button>` primitive at `src/components/ui/button.tsx` already includes `active:not-aria-[haspopup]:translate-y-px` in its cva config. Adding `active:scale` on top of `<Button>` would compound feedback. Leave `<Button>` instances alone.
+
+### Why scale-only, no transition-transform
+
+Native press feedback feels best when the press itself is instant. The `transition-colors` already on most elements stays for color/bg state; the scale snaps in/out with the touch lifecycle, matching iOS/Android default press behavior. Adding `transition-transform` smooths the snap and feels artificial.
+
+### Canonical examples
+
+- `src/components/navigation/floating-navbar.tsx` — primary tabs and More button (`active:scale-[0.95]`)
+- `src/components/dashboard/notification-drawer.tsx` — bell button (`active:scale-95`)
+- `src/components/dashboard/logout-button.tsx` — submit button (`active:scale-95`)
+
+---
+
 ## Cross-References
 
 - `src/lib/native.ts` — `isNative()` and `globalThis` cast example
 - `src/lib/haptic.ts` — `void vibrate(...)` pattern
+- `src/lib/constants.ts` — `Author` type, `AUTHOR_COLORS` map, `partnerOf` helper, `TITLE_BY_AUTHOR`
 - `src/components/biometric-gate.tsx` — `setTimeout` defer, listener cleanup, debounce ref
 - `src/components/fcm-provider.tsx` — chained listener cleanup via `cleanupRef`
+- `src/components/ui/sheet.tsx` — shadcn Sheet helper (used by the floating-navbar More sheet via the Dialog primitive directly)
+- `src/components/ui/rich-text-editor.tsx` — `forceMount` on Write tab so submitted forms always have the textarea
+- `src/components/navigation/floating-navbar.tsx` — Dialog-direct + motion drag-to-dismiss; `active:scale-[0.95]`
+- `src/components/navigation-progress.tsx` — top progress bar fired on internal `<a href>` clicks
+- `src/components/dashboard/today-strip.tsx` — daily-attention chip strip wired to `useNavBadges` + `getTodayMoods`
+- `src/components/dashboard/counter-card.tsx`, `timezone-card.tsx` — own their internal ticks
 - `src/hooks/use-network.ts` — Capacitor-aware network status
+- `src/hooks/use-pull-to-refresh.ts` — bails when touch starts inside `[role="dialog"]`
+- `src/app/template.tsx` — per-route enter animation, `ROUTE_ORDER` for directional slide
 - `src/app/actions/notes.ts` — pipeline pattern, action return shape
 - `src/app/actions/rules.ts` — server-side role enforcement, `_removed` rename
 - `src/app/actions/permissions.ts` — optimistic UI consumer, validation cascade

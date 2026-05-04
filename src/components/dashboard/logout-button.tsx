@@ -9,7 +9,7 @@ export function LogoutButton() {
       <button
         type="submit"
         aria-label="Log out"
-        className="rounded-full p-2 text-muted-foreground/30 transition-all hover:bg-destructive/10 hover:text-destructive"
+        className="rounded-full p-2 text-muted-foreground/30 transition-all hover:bg-destructive/10 hover:text-destructive active:scale-95"
       >
         <LogOut className="h-4 w-4" />
       </button>

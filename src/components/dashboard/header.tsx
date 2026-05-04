@@ -1,13 +1,12 @@
 import { MY_TZ, TITLE_BY_AUTHOR } from "@/lib/constants";
 
 interface HeaderProps {
-  now: Date;
   author: string | null;
 }
 
-export function Header({ now, author }: HeaderProps) {
+export function Header({ author }: HeaderProps) {
   const hour = parseInt(
-    now.toLocaleString("en-US", {
+    new Date().toLocaleString("en-US", {
       timeZone: MY_TZ,
       hour: "numeric",
       hour12: false,

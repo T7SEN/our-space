@@ -4,7 +4,7 @@
 import { motion } from "motion/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TITLE_BY_AUTHOR, MY_TZ } from "@/lib/constants";
+import { AUTHOR_COLORS, MY_TZ, TITLE_BY_AUTHOR } from "@/lib/constants";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import {
   REVIEW_FIELDS,
@@ -31,24 +31,31 @@ function formatRevealedAt(ts: number): string {
 
 function AuthorColumn({
   record,
+  author,
   isMine,
   authorTitle,
 }: {
   record: ReviewRecord;
+  author: ReviewAuthor;
   isMine: boolean;
   authorTitle: string;
 }) {
+  const color = AUTHOR_COLORS[author];
   return (
     <article
       className={cn(
         "rounded-3xl border p-5 sm:p-6",
-        isMine
-          ? "border-primary/20 bg-primary/5"
-          : "border-white/5 bg-black/20",
+        color.borderSoft,
+        color.bgSoft,
       )}
     >
       <header className="mb-5 flex items-baseline justify-between gap-2">
-        <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-foreground/80">
+        <h3
+          className={cn(
+            "text-xs font-bold uppercase tracking-[0.18em]",
+            color.textSoft,
+          )}
+        >
           {authorTitle}
         </h3>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
@@ -88,9 +95,9 @@ function AuthorColumn({
 
 /**
  * Side-by-side reveal of both authors' reflections. Stacks vertically
- * on mobile, grids on md+. The mine/theirs distinction is rendered
- * via subtle color rather than position so neither author's column
- * is visually privileged.
+ * on mobile, grids on md+. Each column carries its own author identity
+ * color so the columns are visually distinct regardless of viewer; the
+ * "You / Them" pill in the header tells you which is yours.
  */
 export function RevealCard({ revealed, currentAuthor }: RevealCardProps) {
   return (
@@ -128,11 +135,13 @@ export function RevealCard({ revealed, currentAuthor }: RevealCardProps) {
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <AuthorColumn
           record={revealed.T7SEN}
+          author="T7SEN"
           isMine={currentAuthor === "T7SEN"}
           authorTitle={TITLE_BY_AUTHOR.T7SEN}
         />
         <AuthorColumn
           record={revealed.Besho}
+          author="Besho"
           isMine={currentAuthor === "Besho"}
           authorTitle={TITLE_BY_AUTHOR.Besho}
         />

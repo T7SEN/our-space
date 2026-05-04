@@ -1,11 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Clock, Sun, Moon, BedDouble } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { MY_TZ, PARTNER_TZ, MY_CITY, PARTNER_CITY } from "@/lib/constants";
 
-export function TimezoneCard({ now }: { now: Date }) {
+export function TimezoneCard() {
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    // Minute resolution is enough — the card only shows hours and minutes.
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const hourFormatter = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     hour12: false,

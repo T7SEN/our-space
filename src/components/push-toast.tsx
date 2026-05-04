@@ -153,7 +153,8 @@ export function PushToast() {
 
             <button
               onClick={() => dismiss(toast.id)}
-              className="mt-0.5 shrink-0 rounded-full p-1 text-muted-foreground/40 transition-colors hover:bg-muted/20 hover:text-muted-foreground"
+              aria-label="Dismiss notification"
+              className="mt-0.5 shrink-0 rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-muted/20 hover:text-muted-foreground active:scale-95"
             >
               <X className="h-3.5 w-3.5" />
             </button>

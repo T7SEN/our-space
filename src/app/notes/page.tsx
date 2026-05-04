@@ -42,7 +42,12 @@ import {
   type Note,
 } from "@/app/actions/notes";
 import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
-import { START_DATE, TITLE_BY_AUTHOR } from "@/lib/constants";
+import {
+  AUTHOR_COLORS,
+  START_DATE,
+  TITLE_BY_AUTHOR,
+  type Author,
+} from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -50,6 +55,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { vibrate } from "@/lib/haptic";
+import { hideKeyboard } from "@/lib/keyboard";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { useNetwork } from "@/hooks/use-network";
@@ -270,6 +276,7 @@ export default function NotesPage() {
 
     (formRef.current as any)?.reset();
     if (composeRef.current) (composeRef.current as any).style.height = "auto";
+    void hideKeyboard();
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     Promise.all([getNotes(0), getNoteCount(), getNoteCountByAuthor()]).then(
@@ -413,7 +420,7 @@ export default function NotesPage() {
   const isOverLimit = charCount > MAX_CONTENT_LENGTH;
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-blue-500/5 blur-[150px]" />
@@ -662,20 +669,28 @@ export default function NotesPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
               <input
-                type="text"
+                type="search"
                 placeholder="Search notes…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                inputMode="search"
+                enterKeyHint="search"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                aria-label="Search notes"
                 className={cn(
-                  "w-full rounded-full border border-white/5 bg-card/40 py-2 pl-9 pr-4",
+                  "w-full rounded-full border border-white/5 bg-card/40 py-2 pl-9 pr-10",
                   "text-xs placeholder:text-muted-foreground/30 outline-none backdrop-blur-sm",
                   "transition-colors focus:border-primary/30",
                 )}
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground"
+                  aria-label="Clear search"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-white/5 hover:text-muted-foreground active:scale-95"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -880,7 +895,6 @@ function NoteItem({
   const [showOriginal, setShowOriginal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isPartner = note.author === "Besho";
   const isEdited = !!note.editedAt;
   const isOwnNote = note.author === currentAuthor;
   const editCharCount = editContent.length;
@@ -962,7 +976,9 @@ function NoteItem({
           "absolute left-0 top-1.5 h-6 w-6 rounded-full border-4 border-background shadow-sm",
           isOptimistic && "animate-pulse",
           note.pinned && "ring-1 ring-primary/40",
-          isPartner ? "bg-primary" : "bg-foreground/50",
+          note.author === "T7SEN" || note.author === "Besho"
+            ? AUTHOR_COLORS[note.author as Author].bg
+            : "bg-foreground/50",
         )}
       />
 
@@ -994,7 +1010,9 @@ function NoteItem({
             <span
               className={cn(
                 "text-[10px] font-bold uppercase tracking-widest",
-                isPartner ? "text-primary/80" : "text-foreground/60",
+                note.author === "T7SEN" || note.author === "Besho"
+                  ? AUTHOR_COLORS[note.author as Author].textSoft
+                  : "text-foreground/60",
               )}
             >
               {note.author === "T7SEN" || note.author === "Besho"

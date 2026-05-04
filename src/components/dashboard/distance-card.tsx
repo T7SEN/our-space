@@ -1,12 +1,90 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { MapPin, Navigation2 } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { DISTANCE_KM, MY_LABEL, PARTNER_LABEL } from "@/lib/constants";
+import {
+  DISTANCE_KM,
+  MY_LABEL,
+  PARTNER_COORDS,
+  PARTNER_LABEL,
+} from "@/lib/constants";
+import { isNative } from "@/lib/native";
+import { useRefreshListener } from "@/hooks/use-refresh-listener";
+import { logger } from "@/lib/logger";
+
+type DistanceStatus = "loading" | "live" | "fallback";
+
+const POSITION_MAX_AGE_MS = 5 * 60_000;
+const POSITION_TIMEOUT_MS = 10_000;
+
+function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export function DistanceCard() {
-  const miles = Math.round(DISTANCE_KM * 0.621371);
+  const [liveKm, setLiveKm] = useState<number | null>(null);
+  const [status, setStatus] = useState<DistanceStatus>("loading");
+
+  const fetchLivePosition = useCallback(async () => {
+    if (!isNative()) {
+      setStatus("fallback");
+      return;
+    }
+    try {
+      const { Geolocation } = await import("@capacitor/geolocation");
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location !== "granted" && perm.coarseLocation !== "granted") {
+        const req = await Geolocation.requestPermissions();
+        if (req.location !== "granted" && req.coarseLocation !== "granted") {
+          setStatus("fallback");
+          return;
+        }
+      }
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: POSITION_TIMEOUT_MS,
+        maximumAge: POSITION_MAX_AGE_MS,
+      });
+      const km = haversineKm(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        PARTNER_COORDS.lat,
+        PARTNER_COORDS.lng,
+      );
+      setLiveKm(km);
+      setStatus("live");
+    } catch (err) {
+      logger.error("[distance] geolocation failed:", err);
+      setStatus("fallback");
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchLivePosition();
+  }, [fetchLivePosition]);
+
+  useRefreshListener(() => {
+    void fetchLivePosition();
+  });
+
+  const km =
+    status === "live" && liveKm !== null ? Math.round(liveKm) : DISTANCE_KM;
+  const miles = Math.round(km * 0.621371);
   const flightPath = "M 0 35 Q 50 5 100 35";
 
   return (
@@ -35,17 +113,22 @@ export function DistanceCard() {
       <div className="relative z-10 mt-6">
         <div className="flex items-baseline gap-2">
           <motion.span
-            initial={{ opacity: 0, scale: 0.9 }}
+            key={km}
+            initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
             className="text-6xl font-black tracking-tighter"
           >
-            {DISTANCE_KM}
+            {km}
           </motion.span>
           <span className="text-xl font-bold text-muted-foreground">km</span>
         </div>
-        <p className="text-sm font-medium text-muted-foreground/60">
-          {miles} miles away
-        </p>
+        <div className="mt-1 flex items-center gap-2">
+          <p className="text-sm font-medium text-muted-foreground/60">
+            {miles} miles away
+          </p>
+          <StatusBadge status={status} />
+        </div>
       </div>
 
       {/* Visual Connection Map */}
@@ -111,5 +194,34 @@ export function DistanceCard() {
         </div>
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: DistanceStatus }) {
+  if (status === "loading") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-muted/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
+        <span className="h-1 w-1 animate-pulse rounded-full bg-muted-foreground/40" />
+        Locating
+      </span>
+    );
+  }
+
+  if (status === "live") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-primary/80">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
+          <span className="relative h-1.5 w-1.5 rounded-full bg-primary" />
+        </span>
+        Live
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-muted/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+      Approx
+    </span>
   );
 }

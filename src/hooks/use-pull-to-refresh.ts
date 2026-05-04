@@ -29,6 +29,7 @@ export function usePullToRefresh({
   const isRefreshingRef = useRef(false);
   const isPullingRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
+  const startedInDialogRef = useRef(false);
 
   const reset = useCallback(() => {
     pullRef.current = 0;
@@ -48,11 +49,18 @@ export function usePullToRefresh({
     if (!enabled) return;
 
     const handleTouchStart = (e: TouchEvent) => {
+      // Bail when the gesture starts inside any open Radix dialog/sheet so
+      // a drag-to-dismiss on the bottom sheet doesn't also yank the page.
+      const target = e.target as Element | null;
+      startedInDialogRef.current =
+        target?.closest?.('[role="dialog"]') != null;
+      if (startedInDialogRef.current) return;
       if (window.scrollY > 5) return;
       startYRef.current = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      if (startedInDialogRef.current) return;
       if (window.scrollY > 5 || isRefreshingRef.current) return;
 
       const distance = e.touches[0].clientY - startYRef.current;
@@ -81,6 +89,10 @@ export function usePullToRefresh({
     };
 
     const handleTouchEnd = async () => {
+      if (startedInDialogRef.current) {
+        startedInDialogRef.current = false;
+        return;
+      }
       if (isRefreshingRef.current || pullRef.current < threshold) {
         reset();
         return;

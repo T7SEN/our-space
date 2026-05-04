@@ -37,6 +37,7 @@ import { TITLE_BY_AUTHOR } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
+import { hideKeyboard } from "@/lib/keyboard";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -115,6 +116,7 @@ export default function LedgerPage() {
       formRef.current?.reset();
       setShowForm(false);
       void vibrate(50, "medium");
+      void hideKeyboard();
       getLedgerEntries().then(setEntries);
     }, 0);
   }, [state]);
@@ -139,7 +141,7 @@ export default function LedgerPage() {
     type === "reward" ? REWARD_CATEGORIES : PUNISHMENT_CATEGORIES;
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-destructive/3 blur-[150px]" />
@@ -540,7 +542,7 @@ function EntryItem({
               setShowDelete(true);
             }}
             aria-label="Delete entry"
-            className="shrink-0 rounded-full p-1.5 text-muted-foreground/20 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+            className="shrink-0 rounded-full p-2 text-muted-foreground/40 opacity-100 transition-all hover:bg-destructive/10 hover:text-destructive active:scale-95 md:text-muted-foreground/20 md:opacity-0 md:group-hover:opacity-100"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

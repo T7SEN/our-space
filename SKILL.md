@@ -41,6 +41,10 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - Optimistic UI mutations on existing records → snapshot, mutate, server, rollback-on-error, refresh-on-success. Skip for create-paths.
 - Redis writes that depend on each other → `redis.pipeline()`.
 - Date-derived keys → Cairo time via `MY_TZ`, never UTC.
+- Mobile-first page padding: `p-4 md:p-12` on outer wrappers, `gap-4 md:gap-6` on grids, `pb-28 md:pb-32` for floating-navbar clearance.
+- `<TabsContent>` that holds form-bearing children must `forceMount` — Radix unmounts inactive tabs and `FormData` ignores DOM-absent inputs.
+- Cards needing 1Hz/60s ticks own their own `setInterval` — never tick the dashboard parent.
+- Custom interactive surfaces (raw `<button>`, `<Link>`) get `active:scale-[0.95]`. The shadcn `<Button>` already has its own press feedback.
 
 ---
 

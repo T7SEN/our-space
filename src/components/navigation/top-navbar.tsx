@@ -7,12 +7,13 @@ import { LogoutButton } from "@/components/dashboard/logout-button";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { AUTHOR_COLORS, type Author } from "@/lib/constants";
 
 const HIDDEN_ON = ["/login"];
 
 export function TopNavbar() {
   const pathname = usePathname();
-  const [author, setAuthor] = useState<string | null>(null);
+  const [author, setAuthor] = useState<Author | null>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -33,7 +34,7 @@ export function TopNavbar() {
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/20">
             <Heart className="h-3 w-3 text-primary" fill="currentColor" />
           </div>
-          <span className="text-xs font-semibold tracking-[0.12em] text-muted-foreground/50 uppercase">
+          <span className="hidden text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/50 md:inline">
             Our Space
           </span>
         </div>
@@ -49,7 +50,7 @@ export function TopNavbar() {
           <div
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              author === "Besho" ? "bg-primary" : "bg-foreground/50",
+              author ? AUTHOR_COLORS[author].bg : "bg-foreground/30",
             )}
           />
           <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">

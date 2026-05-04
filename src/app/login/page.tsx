@@ -83,6 +83,12 @@ export default function LoginPage() {
                 placeholder="Passcode"
                 required
                 disabled={isPending}
+                autoComplete="current-password"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="text"
+                enterKeyHint="go"
                 className={cn(
                   "flex h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm",
                   "ring-offset-background placeholder:text-muted-foreground",

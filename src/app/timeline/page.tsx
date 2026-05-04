@@ -27,11 +27,12 @@ import {
 } from "@/app/actions/timeline";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
-import { START_DATE } from "@/lib/constants";
+import { AUTHOR_COLORS, START_DATE, type Author } from "@/lib/constants";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { useKeyboardHeight } from "@/hooks/use-keyboard";
 import { logger } from "@/lib/logger";
+import { hideKeyboard } from "@/lib/keyboard";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 
@@ -117,6 +118,7 @@ export default function TimelinePage() {
     if (!state?.success) return;
     const form = formRef.current as unknown as { reset: () => void } | null;
     form?.reset();
+    void hideKeyboard();
     Promise.resolve().then(() => {
       setSelectedEmoji("✨");
       setShowForm(false);
@@ -151,7 +153,7 @@ export default function TimelinePage() {
   }, [keyboardHeight]);
 
   return (
-    <div className="relative min-h-screen bg-background p-6 md:p-12">
+    <div className="relative min-h-screen bg-background p-4 md:p-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute left-[-10%] top-[-10%] h-125 w-125 rounded-full bg-primary/5 blur-[150px]" />
         <div className="absolute bottom-[-10%] right-[-10%] h-125 w-125 rounded-full bg-blue-500/5 blur-[150px]" />
@@ -403,7 +405,11 @@ function MilestoneItem({
   onDelete: (id: string) => void;
 }) {
   const isOwn = milestone.author === currentAuthor;
-  const isPartner = milestone.author === "Besho";
+  const milestoneAuthor =
+    milestone.author === "T7SEN" || milestone.author === "Besho"
+      ? (milestone.author as Author)
+      : null;
+  const authorColor = milestoneAuthor ? AUTHOR_COLORS[milestoneAuthor] : null;
   const [showDelete, setShowDelete] = useState(false);
 
   return (
@@ -425,7 +431,7 @@ function MilestoneItem({
         className={cn(
           "group mb-6 rounded-2xl border bg-card/20 p-5 backdrop-blur-sm",
           "transition-colors hover:border-white/10",
-          isPartner ? "border-primary/10" : "border-white/5",
+          authorColor?.borderSoft ?? "border-white/5",
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -445,7 +451,7 @@ function MilestoneItem({
               <span
                 className={cn(
                   "text-[10px] font-bold uppercase tracking-widest",
-                  isPartner ? "text-primary/70" : "text-foreground/50",
+                  authorColor?.textSoft ?? "text-foreground/50",
                 )}
               >
                 {formatEventDate(milestone.date)}
@@ -458,7 +464,7 @@ function MilestoneItem({
               <span
                 className={cn(
                   "text-[10px] font-bold uppercase tracking-widest",
-                  isPartner ? "text-primary/60" : "text-foreground/40",
+                  authorColor?.textSoft ?? "text-foreground/40",
                 )}
               >
                 {milestone.author}
@@ -470,7 +476,7 @@ function MilestoneItem({
             <button
               onClick={() => setShowDelete(true)}
               aria-label="Delete milestone"
-              className="rounded-full p-1.5 text-muted-foreground/20 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+              className="rounded-full p-2 text-muted-foreground/40 opacity-100 transition-all hover:bg-destructive/10 hover:text-destructive active:scale-95 md:text-muted-foreground/20 md:opacity-0 md:group-hover:opacity-100"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

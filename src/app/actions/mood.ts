@@ -4,11 +4,7 @@
 import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
-import {
-  addDaysCairo,
-  secondsUntilCairoMidnight,
-  todayKeyCairo,
-} from "@/lib/cairo-time";
+import { addDaysCairo, todayKeyCairo } from "@/lib/cairo-time";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 
@@ -34,10 +30,12 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 });
 
-// Mood and state keys persist for 7 days so getMoodHistory
-// can query past dates. The daily-reset behaviour is unaffected
-// because getTodayMoods reads today's date-scoped key only.
-const MOOD_RETENTION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
+// Mood, state, and hug keys persist permanently. The previous 7-day TTL
+// was vestigial — at two-user scale, storage cost is invisible (≈2,200
+// keys/year), and a permanent record unblocks /review historical
+// browsing beyond 7 days back, plus future longitudinal views. The
+// "daily reset" semantics come from the date being part of the key,
+// not from expiry.
 
 const moodKey = (date: string, author: string) => `mood:${date}:${author}`;
 const stateKey = (date: string, author: string) => `state:${date}:${author}`;
@@ -110,11 +108,8 @@ export async function submitMood(
   try {
     const author = session.author as "T7SEN" | "Besho";
     const today = todayKeyCairo();
-    const ttl = secondsUntilCairoMidnight();
 
-    await redis.set(moodKey(today, author), trimmed, {
-      ex: Math.max(MOOD_RETENTION_TTL, ttl),
-    });
+    await redis.set(moodKey(today, author), trimmed);
 
     logger.interaction("[mood] Mood set", { author, mood: trimmed });
     return { success: true };
@@ -140,11 +135,8 @@ export async function submitState(
   try {
     const author = session.author as "T7SEN" | "Besho";
     const today = todayKeyCairo();
-    const ttl = secondsUntilCairoMidnight();
 
-    await redis.set(stateKey(today, author), trimmed, {
-      ex: Math.max(MOOD_RETENTION_TTL, ttl),
-    });
+    await redis.set(stateKey(today, author), trimmed);
 
     logger.interaction("[mood] State set", { author, state: trimmed });
     return { success: true };
@@ -165,11 +157,8 @@ export async function sendHug(): Promise<{
     const author = session.author as "T7SEN" | "Besho";
     const partner = author === "T7SEN" ? "Besho" : "T7SEN";
     const today = todayKeyCairo();
-    const ttl = secondsUntilCairoMidnight();
 
-    await redis.set(hugKey(today, author), "1", {
-      ex: Math.max(MOOD_RETENTION_TTL, ttl),
-    });
+    await redis.set(hugKey(today, author), "1");
 
     await sendNotification(partner, {
       title: "🤗 Hug",
@@ -188,15 +177,12 @@ export async function sendHug(): Promise<{
 /**
  * Returns the last `days` days of mood + state data for both users,
  * oldest entry first. Reads up to `days × 4` Redis keys in a single
- * mget call — no N+1. Keys must still exist (MOOD_RETENTION_TTL
- * guarantees they do for 7 days after submission).
+ * mget call — no N+1.
  *
- * Bug fix in this revision: the prior implementation used
- * `new Date(); d.setDate(d.getDate() - i)` against server-local time.
- * On Vercel that's UTC, so during early Cairo morning (00:00 → 02:00
- * EET / 03:00 EEST) the day index could be off by one and the grid
- * could miss today's entry. Now anchored at `todayKeyCairo()` and
- * walked via `addDaysCairo`.
+ * Now that mood keys persist permanently, callers can request
+ * arbitrary historical depth (e.g., `getMoodHistory(30)` for a
+ * monthly view, or `getMoodHistory(365)` for a yearly grid). Days
+ * with no logged mood naturally return null per cell.
  */
 export async function getMoodHistory(days = 7): Promise<MoodHistoryEntry[]> {
   const session = await getSession();

@@ -1,3 +1,4 @@
+// src/components/notes/note-reactions.tsx
 "use client";
 
 import { useState } from "react";
@@ -35,6 +36,28 @@ function groupReactions(
   }));
 }
 
+/**
+ * Computes the post-toggle state locally, mirroring the server-side
+ * logic in `reactToNote`:
+ *   - Same emoji as existing → remove the author's entry.
+ *   - Different emoji → replace.
+ *   - No existing → add.
+ */
+function applyToggle(
+  reactions: Record<string, string>,
+  author: string,
+  emoji: string,
+): Record<string, string> {
+  const existing = reactions[author];
+  const next = { ...reactions };
+  if (existing === emoji) {
+    delete next[author];
+  } else {
+    next[author] = emoji;
+  }
+  return next;
+}
+
 export function NoteReactions({
   noteId,
   reactions,
@@ -47,17 +70,61 @@ export function NoteReactions({
   const grouped = groupReactions(reactions);
   const myReaction = currentAuthor ? reactions[currentAuthor] : null;
 
+  /**
+   * Snapshot/rollback optimistic update — codebase pattern from
+   * `references/coding-patterns.md` § "Optimistic UI with Snapshot
+   * Rollback":
+   *
+   *   1. Snapshot current state (the `reactions` prop at tap time).
+   *   2. Apply optimistic mutation locally via `onReactionsChange`.
+   *   3. Call server.
+   *   4. On error: rollback by re-applying the snapshot.
+   *   5. On success: commit the authoritative server-returned state.
+   *
+   * `isSubmitting` blocks double-fires from the same tap (motion's
+   * `whileTap` plus a delayed click could otherwise hit twice). The
+   * pill `disabled={isSubmitting}` was intentionally REMOVED — the
+   * optimistic update gives instant feedback regardless. Disabling
+   * the pill defeated the purpose of going optimistic.
+   *
+   * Concurrency note: in the rare case of two near-simultaneous taps
+   * for the same note, server-side `reactToNote` is read-then-write
+   * non-atomically. At two-user scale with ~seconds-apart tap rates,
+   * the race window is negligible. If it ever matters, a per-noteId
+   * client-side promise queue would close it without server changes.
+   */
   const handleReact = async (emoji: string) => {
     if (isSubmitting) return;
+    if (!currentAuthor) return; // No author = server would reject anyway.
+
     void vibrate(50, "light");
-    setIsSubmitting(true);
     setShowPicker(false);
 
-    const result = await reactToNote(noteId, emoji as ReactionEmoji);
-    if (!result.error) {
-      onReactionsChange(result.reactions);
+    // 1. Snapshot.
+    const snapshot = reactions;
+    // 2. Optimistic apply.
+    const optimistic = applyToggle(reactions, currentAuthor, emoji);
+    onReactionsChange(optimistic);
+
+    setIsSubmitting(true);
+    try {
+      // 3. Server.
+      const result = await reactToNote(noteId, emoji as ReactionEmoji);
+      if (result.error) {
+        // 4. Rollback on server-reported error.
+        onReactionsChange(snapshot);
+      } else {
+        // 5. Commit authoritative state. Usually identical to
+        //    `optimistic`; differs only if the server saw a
+        //    concurrent change between snapshot and commit.
+        onReactionsChange(result.reactions);
+      }
+    } catch {
+      // 4. Rollback on network/transport error.
+      onReactionsChange(snapshot);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   return (
@@ -78,10 +145,9 @@ export function NoteReactions({
                   whileTap={{ scale: 0.85 }}
                   transition={{ type: "spring", bounce: 0.4, duration: 0.3 }}
                   onClick={() => handleReact(emoji)}
-                  disabled={isSubmitting || undefined}
                   className={cn(
                     "flex items-center gap-1 rounded-full px-2.5 py-1",
-                    "border text-xs font-bold transition-all disabled:opacity-50",
+                    "border text-xs font-bold transition-all",
                     isMyReaction
                       ? "border-primary/40 bg-primary/10 text-primary"
                       : "border-border/30 bg-black/20 text-muted-foreground hover:border-primary/20",

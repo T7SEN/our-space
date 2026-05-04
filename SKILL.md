@@ -20,7 +20,8 @@ Before writing code or proposing changes, complete this checklist:
 3. **Anti-hallucination check** → Read Section 2 below before writing imports or env-var references.
 4. **Role-context identification** → Does this involve a state mutation? If yes → identify which author (`T7SEN`/`Besho`) is allowed and ensure server-side role check (`AGENTS.md` Section 3.1; `references/auth-and-security.md`). For `/permissions` specifically, `getAutoRules` is Sir-only and must return `[]` for Besho — don't relax.
 5. **Reference routing** → Use the table in `AGENTS.md` Section 13 to decide which `references/*.md` file to load. Don't skim the body when a reference has the answer. For any `/permissions` work, load `references/permissions.md`.
-6. **FCM nullability check** → Does this touch push delivery? If yes → treat `push:fcm:{author}` as nullable per `AGENTS.md` Section 3.3, never as guaranteed-present.
+6. **Date math check** → Need a date key, day boundary, or windowing math? Import from `@/lib/cairo-time`. Never reinvent `Intl.DateTimeFormat` helpers at a callsite. Never hardcode `+02:00` — DST drift half the year.
+7. **FCM nullability check** → Does this touch push delivery? If yes → treat `push:fcm:{author}` as nullable per `AGENTS.md` Section 3.3, never as guaranteed-present.
 
 When unsure, ask the user one targeted question rather than guessing. Guessing on this codebase produces runtime failures.
 
@@ -47,19 +48,21 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 
 These were removed or never existed. Do not import them, reference them, or write code that uses them. If you find yourself typing one of these — **stop**.
 
-| Removed / nonexistent                                                                                 | Replacement                                                                             |
-| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `@serwist/next`, `@serwist/sw`, `serwist`, `workbox-*`                                                | None — PWA removed                                                                      |
-| `web-push` package, `VAPID_*` env vars                                                                | None — Web Push removed                                                                 |
-| `navigator.serviceWorker`, `sw.register()`, `public/sw.js`, `public/manifest.json`                    | None                                                                                    |
-| `src/lib/offline-notes.ts`, `storePendingNote`, `getPendingNotes`, `removePendingNote`, `PendingNote` | None — IndexedDB queue removed                                                          |
-| `/api/notes/sync` endpoint                                                                            | None — only `/api/notes/stream` (SSE) exists in `notes/api/`                            |
-| `push:subscription:{author}` Redis key                                                                | `push:fcm:{author}` only                                                                |
-| `prisma`, `@prisma/client`, SQL migrations                                                            | Upstash Redis is the sole datastore; `/src/generated/prisma` is a stale gitignore entry |
-| Light-mode Tailwind variants                                                                          | Dark theme is forced via `forcedTheme="dark"`                                           |
-| `tailwind.config.ts` / `tailwind.config.js`                                                           | Tailwind v4 is CSS-first; tokens live in `src/app/globals.css`                          |
-| `pages/` directory, `getServerSideProps`, `getStaticProps`                                            | App Router only                                                                         |
-| `VoiceNote` type, `voiceNote` field, `MediaRecorder` + `RECORD_AUDIO` permission for `/permissions`   | None — voice notes prototyped on permissions and explicitly removed                     |
+| Removed / nonexistent                                                                                                                         | Replacement                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `@serwist/next`, `@serwist/sw`, `serwist`, `workbox-*`                                                                                        | None — PWA removed                                                                         |
+| `web-push` package, `VAPID_*` env vars                                                                                                        | None — Web Push removed                                                                    |
+| `navigator.serviceWorker`, `sw.register()`, `public/sw.js`, `public/manifest.json`                                                            | None                                                                                       |
+| `src/lib/offline-notes.ts`, `storePendingNote`, `getPendingNotes`, `removePendingNote`, `PendingNote`                                         | None — IndexedDB queue removed                                                             |
+| `/api/notes/sync` endpoint                                                                                                                    | None — only `/api/notes/stream` (SSE) exists in `notes/api/`                               |
+| `push:subscription:{author}` Redis key                                                                                                        | `push:fcm:{author}` only                                                                   |
+| `prisma`, `@prisma/client`, SQL migrations                                                                                                    | Upstash Redis is the sole datastore; `/src/generated/prisma` is a stale gitignore entry    |
+| Light-mode Tailwind variants                                                                                                                  | Dark theme is forced via `forcedTheme="dark"`                                              |
+| `tailwind.config.ts` / `tailwind.config.js`                                                                                                   | Tailwind v4 is CSS-first; tokens live in `src/app/globals.css`                             |
+| `pages/` directory, `getServerSideProps`, `getStaticProps`                                                                                    | App Router only                                                                            |
+| `VoiceNote` type, `voiceNote` field, `MediaRecorder` + `RECORD_AUDIO` permission for `/permissions`                                           | None — voice notes prototyped on permissions and explicitly removed                        |
+| TZ primitives in `@/lib/rituals` (`dateKeyInTz`, `todayKeyCairo`, `tzWallClockToUtcMs`, `previousDateKey`, `nextDateKey`, `weekdayOfDateKey`) | `@/lib/cairo-time` — the migration relocated all TZ math; importing from rituals will fail |
+| Inline `todayInCairo()`, `secondsUntilMidnight()`, or per-callsite `Intl.DateTimeFormat` date-key helpers                                     | `@/lib/cairo-time` exports the canonical versions — never reinvent                         |
 
 If a search result, training memory, or autocomplete suggests one of these — it is wrong for this codebase. This table is also mirrored in `references/anti-hallucination.md` for tools that load reference files but not this one.
 
@@ -69,16 +72,19 @@ If a search result, training memory, or autocomplete suggests one of these — i
 
 Refuse these immediately with a one-line rationale. Do not implement, do not ask for clarification, do not "try a workaround." Full table (14 rows) in `references/refusal-catalog.md`.
 
-| Request pattern                                   | Why refuse                                                 |
-| ------------------------------------------------- | ---------------------------------------------------------- |
-| Add a gallery / photo feature, or bucket list     | Banned feature surface                                     |
-| Re-add PWA / Serwist / service worker             | Removed intentionally; conflicts with `server.url`         |
-| Re-add Web Push / VAPID / `web-push` package      | Removed with PWA; conflicts with `server.url`              |
-| Re-suggest voice notes on `/permissions`          | Prototyped and explicitly removed                          |
-| Use `==` / `!=` instead of `===` / `!==`          | Coercion masks bugs in this strict-mode codebase           |
-| Skip role check because "the UI hides the button" | Server actions are public endpoints; client is adversarial |
-| Expose `getAutoRules` to Besho                    | Sir-only authoring artifacts; gaming risk                  |
-| `dangerouslySetInnerHTML` user content            | XSS vector — use `MarkdownRenderer`                        |
+| Request pattern                                         | Why refuse                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------- |
+| Add a gallery / photo feature, or bucket list           | Banned feature surface                                          |
+| Re-add PWA / Serwist / service worker                   | Removed intentionally; conflicts with `server.url`              |
+| Re-add Web Push / VAPID / `web-push` package            | Removed with PWA; conflicts with `server.url`                   |
+| Re-suggest voice notes on `/permissions`                | Prototyped and explicitly removed                               |
+| Use `==` / `!=` instead of `===` / `!==`                | Coercion masks bugs in this strict-mode codebase                |
+| Skip role check because "the UI hides the button"       | Server actions are public endpoints; client is adversarial      |
+| Expose `getAutoRules` to Besho                          | Sir-only authoring artifacts; gaming risk                       |
+| `dangerouslySetInnerHTML` user content                  | XSS vector — use `MarkdownRenderer`                             |
+| Notification dedup / per-author cooldown                | Banner pile-up is by design — every event surfaces              |
+| Rate-limit safeword or permission submissions           | Already layered-protected; refuse without observed glitch       |
+| Universal `MutationResult` typing of all server actions | Preventive refactor with no observed drift; refuse pre-evidence |
 
 ---
 

@@ -161,6 +161,7 @@ src/
 │   ├── permissions/            # Two-author negotiation surface (see references/permissions.md)
 │   ├── protocol/               # Shared protocol + version history; supports ?focus= deep links
 │   ├── rituals/                # Recurring obligations + LocalNotifications reminders
+│   ├── review/                 # Weekly retrospective — independent reflections, atomic reveal
 │   ├── actions/                # Server actions ('use server')
 │   └── api/
 │       ├── presence/route.ts
@@ -169,6 +170,7 @@ src/
 ├── components/
 │   ├── biometric-gate.tsx
 │   ├── fcm-provider.tsx
+│   ├── sentry-user-provider.tsx
 │   ├── push-toast.tsx
 │   ├── pull-to-refresh.tsx
 │   ├── capacitor-init.tsx
@@ -176,9 +178,10 @@ src/
 │   ├── global-logger.tsx
 │   ├── navigation/             # top-navbar, floating-navbar
 │   ├── dashboard/              # Cards: Mood, Counter, Weather, Moon, Distance, Quote, SafeWord, Birthday
+│   ├── review/                 # Form, reveal card, summary panel, history drawer
 │   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary
 ├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges
-├── lib/                        # auth-utils, native, haptic, clipboard, logger, constants, *-constants
+├── lib/                        # auth-utils, cairo-time, native, haptic, clipboard, logger, constants, *-constants
 └── instrumentation.ts          # Sentry
 ```
 
@@ -197,23 +200,36 @@ When in doubt:
 7. Banned (gallery, bucket list)? → Refuse.
 8. Violates any rule above? → Refuse and explain.
 
+### Decisions deliberately deferred
+
+These were considered and rejected on merits — not banned, but revisit only if observed evidence justifies the cost. Don't re-propose without new information.
+
+- **Notification dedup / per-author cooldown.** Banner pile-up is by design — every event surfaces. Adding cooldown would mute the signal the user wants. Revisit only if a specific scenario produces unwanted spam.
+- **Rate-limiting safeword + permission submissions.** Already protected: safeword by 5min cooldown, permissions by re-ask block + max-pending cap + body-length cap + body-hash dedupe. Adding rate limits would protect against scenarios that don't realistically occur.
+- **Server-action return-shape lint or type guard.** The `{ success?, error? }` convention has held by hand-copy with no observed drift. Adding `MutationResult` everywhere is a ~30-file mechanical pass for preventive value only. Revisit when drift is observed.
+- **SSE generalization beyond `/notes`.** The 15s `useRefreshListener` poll covers permissions / rules / ledger / etc. adequately. SSE on Edge has CPU cost and per-feature poll-detector work that outweighs the sub-15s update gain on pages where 15s is fine.
+- **Reactive-bundle pattern across all pages.** Most pages already do the right thing via `Promise.all`. The remaining gaps are too small to justify a refactor pass.
+- **Background reveal-watcher cron for `/review`.** History-record-on-next-open recovery already exists. Cron adds a moving part for paranoia.
+
 ---
 
 ## 13. References
 
 Load on demand. Do not load preemptively.
 
-| Task involves...                                        | Load                               |
-| ------------------------------------------------------- | ---------------------------------- |
-| Push notifications, FCM, presence routing               | `references/push-routing.md`       |
-| Redis keys, data shape, pagination, TTLs                | `references/redis-schema.md`       |
-| Capacitor plugins, hosted-webapp, BiometricGate         | `references/capacitor-native.md`   |
-| Vercel env vars, APK builds, smoke tests                | `references/deployment.md`         |
-| Runtime-critical coding patterns with examples          | `references/coding-patterns.md`    |
-| Code style, naming, React, TypeScript, UI, state        | `references/code-style.md`         |
-| Auth, error handling, security, accessibility           | `references/auth-and-security.md`  |
-| `/permissions` feature — schema, validation, auto-rules | `references/permissions.md`        |
-| Anti-hallucination inventory (also in `SKILL.md`)       | `references/anti-hallucination.md` |
-| Full refusal catalog (also abridged in `SKILL.md`)      | `references/refusal-catalog.md`    |
+| Task involves...                                         | Load                               |
+| -------------------------------------------------------- | ---------------------------------- |
+| Push notifications, FCM, presence routing                | `references/push-routing.md`       |
+| Redis keys, data shape, pagination, TTLs                 | `references/redis-schema.md`       |
+| Capacitor plugins, hosted-webapp, BiometricGate          | `references/capacitor-native.md`   |
+| Cairo TZ date math, DST-safe windows, day-key arithmetic | `references/cairo-time.md`         |
+| Vercel env vars, APK builds, smoke tests                 | `references/deployment.md`         |
+| Runtime-critical coding patterns with examples           | `references/coding-patterns.md`    |
+| Code style, naming, React, TypeScript, UI, state         | `references/code-style.md`         |
+| Auth, error handling, security, accessibility            | `references/auth-and-security.md`  |
+| `/permissions` feature — schema, validation, auto-rules  | `references/permissions.md`        |
+| `/review` feature — schema, state machine, reveal race   | `references/review.md`             |
+| Anti-hallucination inventory (also in `SKILL.md`)        | `references/anti-hallucination.md` |
+| Full refusal catalog (also abridged in `SKILL.md`)       | `references/refusal-catalog.md`    |
 
 If a task touches multiple areas, load multiple references. Trust the routing table.

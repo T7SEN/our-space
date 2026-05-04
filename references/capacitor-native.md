@@ -109,20 +109,22 @@ Note the `globalThis as unknown as { ... }` pattern — this is the canonical br
 
 All Capacitor plugins are imported **dynamically** to keep the web bundle slim.
 
-| Plugin                                | Used in                                 | Purpose                                                   |
-| ------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
-| `@aparajita/capacitor-biometric-auth` | `BiometricGate`                         | Fingerprint / Face Unlock                                 |
-| `@capacitor/preferences`              | `BiometricGate`, login flow             | Persistent key-value (replaces localStorage on native)    |
-| `@capacitor/push-notifications`       | `FCMProvider`                           | FCM token + foreground/tap listeners                      |
-| `@capacitor/local-notifications`      | `useLocalNotifications`                 | Offline reminders for task/rule deadlines                 |
-| `@capacitor/haptics`                  | `vibrate()` in `src/lib/haptic.ts`      | Native vibration via Android API                          |
-| `@capacitor/clipboard`                | `writeToClipboard`, `readFromClipboard` | Works without WebView focus, unlike `navigator.clipboard` |
-| `@capacitor/app`                      | `BiometricGate`, `CapacitorInit`        | App lifecycle (`appStateChange`)                          |
-| `@capacitor/keyboard`                 | `useKeyboardHeight`                     | Keyboard show/hide events for layout adjustment           |
-| `@capacitor/network`                  | `useNetwork`, `CapacitorInit`           | Network status — drives offline banner in `/notes`        |
-| `@capacitor/status-bar`               | `CapacitorInit`                         | Tint and visibility                                       |
-| `@capacitor/splash-screen`            | `CapacitorInit`                         | Hide on app ready                                         |
-| `@capawesome/capacitor-badge`         | Badge updates                           | App icon badge count                                      |
+| Plugin                                | Used in                                                 | Purpose                                                   |
+| ------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------- |
+| `@aparajita/capacitor-biometric-auth` | `BiometricGate`                                         | Fingerprint / Face Unlock                                 |
+| `@capacitor/preferences`              | `BiometricGate`, login flow                             | Persistent key-value (replaces localStorage on native)    |
+| `@capacitor/push-notifications`       | `FCMProvider`                                           | FCM token + foreground/tap listeners                      |
+| `@capacitor/local-notifications`      | `useLocalNotifications`                                 | Offline reminders for task/rule deadlines                 |
+| `@capacitor/haptics`                  | `vibrate()` in `src/lib/haptic.ts`                      | Native vibration via Android API                          |
+| `@capacitor/clipboard`                | `writeToClipboard`, `readFromClipboard`                 | Works without WebView focus, unlike `navigator.clipboard` |
+| `@capacitor/app`                      | `BiometricGate`, `CapacitorInit`, `SentryUserProvider`  | App lifecycle (`appStateChange`), `App.getInfo()` for Sentry |
+| `@capacitor/keyboard`                 | `useKeyboardHeight`, `hideKeyboard()` in `src/lib/keyboard.ts` | Keyboard show/hide events; programmatic dismiss on form-submit success |
+| `@capacitor/network`                  | `useNetwork`, `CapacitorInit`                           | Network status — drives offline banner in `/notes`        |
+| `@capacitor/status-bar`               | `CapacitorInit`                                         | Tint and visibility                                       |
+| `@capacitor/splash-screen`            | `CapacitorInit`                                         | Hide on app ready                                         |
+| `@capawesome/capacitor-badge`         | Badge updates                                           | App icon badge count                                      |
+| `@capacitor/device`                   | `SentryUserProvider`                                    | Device + app metadata into Sentry context (model, OS, version, build) |
+| `@capacitor/geolocation`              | `DistanceCard`                                          | Coarse-only GPS fix → Haversine distance to `PARTNER_COORDS` |
 
 ### Dynamic import pattern
 
@@ -309,10 +311,13 @@ Note: because of the `server.url` architecture, you'll bump `versionCode` much l
 
 - `src/lib/native.ts` — `isNative()`
 - `src/lib/haptic.ts` — `vibrate()`
+- `src/lib/keyboard.ts` — `hideKeyboard()`, called by every form-success effect
 - `src/lib/clipboard.ts` — `writeToClipboard`, `readFromClipboard`
 - `src/components/biometric-gate.tsx`
 - `src/components/fcm-provider.tsx`
 - `src/components/capacitor-init.tsx`
+- `src/components/sentry-user-provider.tsx` — `@capacitor/device` + `@capacitor/app` context
+- `src/components/dashboard/distance-card.tsx` — `@capacitor/geolocation` consumer
 - `src/hooks/use-network.ts` — `@capacitor/network` integration
 - `src/hooks/use-local-notifications.ts`
 - `src/hooks/use-keyboard.ts`

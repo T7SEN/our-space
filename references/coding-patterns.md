@@ -839,18 +839,156 @@ Native press feedback feels best when the press itself is instant. The `transiti
 
 ---
 
+## 23. Mobile-Friendly Form Input Attributes
+
+Default browser form attributes assume a desktop keyboard. On Android, that means: aggressive autocorrect on a passcode, "return" key where "search" or "go" would be more intuitive, autocapitalize-on-first-letter for handles and search queries. Set the attributes deliberately per field.
+
+### Right
+
+```tsx
+// Login passcode
+<input
+  type="password"
+  name="passcode"
+  required
+  autoComplete="current-password"  // password-manager fill
+  autoCapitalize="off"
+  autoCorrect="off"
+  spellCheck={false}
+  inputMode="text"
+  enterKeyHint="go"                // Samsung keyboard shows "Go"
+/>
+
+// Search box
+<input
+  type="search"
+  inputMode="search"
+  enterKeyHint="search"            // magnifying-glass enter key
+  autoCorrect="off"
+  autoCapitalize="off"
+  spellCheck={false}
+  aria-label="Search notes"
+/>
+```
+
+### When NOT to disable autocorrect / spellcheck
+
+Prose textareas (notes, rules, ritual reflections, review fields) — leave platform defaults. The user wants typo-correction in long-form writing. Don't blanket-default the `<Textarea>` component to spellCheck=false; do it per call site only when the field is for handles, codes, or queries.
+
+### Canonical examples
+
+- `src/app/login/page.tsx` — passcode field
+- `src/app/notes/page.tsx` — search box
+
+---
+
+## 24. Tap-Target Visibility on Mobile
+
+`opacity-0 group-hover:opacity-100` is a desktop-only reveal. On touch, there is no `:hover` — the element is invisible AND inaccessible. For any action a mobile user needs (delete, edit, share, dismiss), the button must render at a visible-but-muted color on mobile and only hover-reveal at `md:` and up.
+
+### Wrong
+
+```tsx
+<button className="opacity-0 group-hover:opacity-100 ...">
+  <Trash2 />
+</button>
+```
+
+Mobile user can't see or tap it.
+
+### Right
+
+```tsx
+<button className="opacity-100 text-muted-foreground/40 md:opacity-0 md:text-muted-foreground/20 md:group-hover:opacity-100 ...">
+  <Trash2 />
+</button>
+```
+
+Mobile sees a subtle muted icon. Desktop hover-reveals at full opacity.
+
+### Tap-target sizing
+
+Icon-only buttons need a hit area of ≥24dp. Most lucide icons are `h-3 w-3` (12px) to `h-4 w-4` (16px) — wrap with `p-1.5` (≥24dp) at minimum, `p-2` (≥28dp) for primary panel-dismiss / drawer-close / push-toast actions where misses are costly. Add `active:scale-95` for tactile feedback (or `active:scale-[0.95]` if it's already on a `transition-colors` parent — see Pattern 22).
+
+Skip for shadcn `<Button>` instances; the cva config bakes in `active:translate-y-px`.
+
+### Canonical examples
+
+- `src/app/timeline/page.tsx` and `src/app/ledger/page.tsx` — `Trash2` delete buttons that hover-reveal at `md:` only
+- `src/app/permissions/page.tsx` — chevron up/down (`p-1.5`), auto-rule delete (`p-2`)
+- `src/components/dashboard/notification-drawer.tsx` — close X (`p-2`)
+- `src/components/push-toast.tsx` — dismiss X (`p-2`)
+
+---
+
+## 25. `hideKeyboard()` After Form Submit Success
+
+The soft keyboard does not auto-dismiss when a form's submit button is tapped — it stays up until the user blurs the input. After a successful submit, the form usually closes; leaving the keyboard up wastes screen space and feels broken.
+
+### Right
+
+```ts
+useEffect(() => {
+  if (!state?.success) return;
+  setTimeout(() => {
+    formRef.current?.reset();
+    setShowForm(false);
+    void vibrate(50, "medium");
+    void hideKeyboard();
+  }, 0);
+}, [state]);
+```
+
+`hideKeyboard()` from `@/lib/keyboard.ts`:
+
+```ts
+import { isNative } from "@/lib/native";
+import { logger } from "./logger";
+
+export async function hideKeyboard(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const { Keyboard } = await import("@capacitor/keyboard");
+    await Keyboard.hide();
+  } catch (err) {
+    logger.error("[keyboard] hide failed:", err);
+  }
+}
+```
+
+Same shape as `vibrate()` — dynamic import, native gate, fire-and-forget via `void`. Web sessions skip silently (the browser handles its own focus lifecycle).
+
+### When to call
+
+In every `useEffect(() => { if (state?.success) { ... } }, [state])` block that closes a form. Currently wired into:
+
+- `src/app/notes/page.tsx` — note compose
+- `src/app/timeline/page.tsx` — milestone create
+- `src/app/rules/page.tsx` — rule create
+- `src/app/tasks/page.tsx` — task create
+- `src/app/ledger/page.tsx` — ledger entry create
+- `src/app/rituals/page.tsx` — ritual create + edit (two effects)
+- `src/app/permissions/page.tsx` — auto-rule submit
+
+If you add a new form whose success closes the form, wire `void hideKeyboard()` in the same effect.
+
+---
+
 ## Cross-References
 
 - `src/lib/native.ts` — `isNative()` and `globalThis` cast example
 - `src/lib/haptic.ts` — `void vibrate(...)` pattern
+- `src/lib/keyboard.ts` — `hideKeyboard()` for form-submit-success effects
 - `src/lib/constants.ts` — `Author` type, `AUTHOR_COLORS` map, `partnerOf` helper, `TITLE_BY_AUTHOR`
 - `src/components/biometric-gate.tsx` — `setTimeout` defer, listener cleanup, debounce ref
 - `src/components/fcm-provider.tsx` — chained listener cleanup via `cleanupRef`
+- `src/components/sentry-user-provider.tsx` — `@capacitor/device` + `@capacitor/app` Sentry context on mount
 - `src/components/ui/sheet.tsx` — shadcn Sheet helper (used by the floating-navbar More sheet via the Dialog primitive directly)
 - `src/components/ui/rich-text-editor.tsx` — `forceMount` on Write tab so submitted forms always have the textarea
 - `src/components/navigation/floating-navbar.tsx` — Dialog-direct + motion drag-to-dismiss; `active:scale-[0.95]`
 - `src/components/navigation-progress.tsx` — top progress bar fired on internal `<a href>` clicks
 - `src/components/dashboard/today-strip.tsx` — daily-attention chip strip wired to `useNavBadges` + `getTodayMoods`
+- `src/components/dashboard/distance-card.tsx` — `@capacitor/geolocation` consumer; Haversine + status badge
 - `src/components/dashboard/counter-card.tsx`, `timezone-card.tsx` — own their internal ticks
 - `src/hooks/use-network.ts` — Capacitor-aware network status
 - `src/hooks/use-pull-to-refresh.ts` — bails when touch starts inside `[role="dialog"]`

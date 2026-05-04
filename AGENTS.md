@@ -43,12 +43,12 @@ Pinned by `package.json`. Do not upgrade as part of feature work.
 - **State / Forms:** native React 19 (`useActionState`, `useTransition`), Zod, no Redux
 - **Data:** Upstash Redis (`@upstash/redis`) — sole datastore
 - **Auth:** `jose` JWT in HTTP-only `session` cookie (HS256, 30-day)
-- **Native:** Capacitor `^8.3.1` + plugins (biometric, push, preferences, haptics, clipboard, app, keyboard, network, status-bar, splash, badge)
+- **Native:** Capacitor `^8.3.1` + plugins (biometric, push, preferences, haptics, clipboard, app, keyboard, network, status-bar, splash, badge, device, geolocation)
 - **Push:** `firebase-admin` (FCM) for Android. **No Web Push. No PWA.**
 - **Observability:** Sentry (`@sentry/nextjs`), Vercel Analytics + Speed Insights
 - **Build/lint:** ESLint `^9` flat config, `concurrently`, `esbuild`
 
-**Anti-hallucination:** before writing any import or env-var reference, consult `SKILL.md` Section 2.1 (also cached in `references/anti-hallucination.md`). Common drift: `serwist`, `web-push`, `VAPID_*`, `offline-notes`, `/api/notes/sync`, `push:subscription:*`, `prisma`, `tailwind.config.*`, `pages/`. None of these exist.
+**Anti-hallucination:** before writing any import or env-var reference, consult `SKILL.md` Section 2.1 (also cached in `references/anti-hallucination.md`). Common drift: `serwist`, `web-push`, `VAPID_*`, `offline-notes`, `/api/notes/sync`, `push:subscription:*`, `prisma`, `tailwind.config.*`, `pages/`. None of these exist. Also non-obvious: `@capacitor/geolocation` and `@capacitor/device` ARE in use (DistanceCard + SentryUserProvider) — see `references/anti-hallucination.md` § "Easy mistakes that aren't on the removed list" before assuming a plugin is dormant.
 
 ---
 
@@ -102,6 +102,10 @@ These compile and lint clean but break at runtime, in SSR, or in React 19 strict
 - **`<TabsContent>` that holds form-bearing children must `forceMount`.** Radix unmounts inactive tabs by default; an unmounted `<input>`/`<textarea>` is missing from `FormData` on submit. The `RichTextEditor` Write tab uses `forceMount` for exactly this reason.
 - **Localized 1Hz tick.** Cards that need second-resolution time (`CounterCard`) own their `setInterval` internally. Never tick the dashboard parent — that re-renders the whole tree every second. Cards that need minute resolution (`TimezoneCard`) tick at 60s; cards that don't auto-update (Header, Birthday, Moon) call `new Date()` inline at render and rely on `refreshKey` re-renders for freshness.
 - **Active-press feedback on custom interactive surfaces.** Non-`<Button>` interactive elements (raw `<button>`, `<Link>`, navbar tiles) use `active:scale-[0.95]`. The shadcn `<Button>` primitive already has `active:translate-y-px` baked into its cva config — don't add scale on top.
+- **Mobile-first page padding.** Page wrappers `p-4 md:p-12`, card grids `gap-4 md:gap-6`, floating-navbar clearance `pb-28 md:pb-32` (dashboard + `/review`).
+- **Tap-target sizes ≥24dp; no `opacity-0 group-hover` for primary mobile actions.** Icon-only buttons get `p-1.5` minimum (`p-2` for panel close / drawer dismiss / push-toast dismiss). Buttons that hover-reveal with `opacity-0` must gate the hidden state behind `md:` so mobile sees them at a muted color (e.g. `opacity-100 md:opacity-0 md:group-hover:opacity-100`).
+- **`void hideKeyboard()` after form-submit success.** Every `useEffect(() => { if (state?.success) ... }, [state])` block calls `void hideKeyboard()` from `@/lib/keyboard.ts` so the soft keyboard dismisses with the form. Native-only; web is a no-op.
+- **Mobile-friendly form inputs.** Set `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` deliberately per field. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode. Don't blanket-disable autocorrect on prose textareas — that hurts notes/rules writing.
 
 ---
 
@@ -119,13 +123,13 @@ Logger in `src/lib/logger.ts`. Sentry via `next.config.ts` + `src/instrumentatio
 
 ## 7. Capacitor / Native (Summary)
 
-`isNative()` from `src/lib/native.ts` is the only sanctioned platform check. Plugin imports are dynamic to keep web bundles slim. Hosted-webapp via `server.url` (Section 3.7). Notification channel `default` created with `vibration: true` and importance 4 to suppress heads-up banners while foregrounded. Web is built via Vercel; APK is rebuilt only when Capacitor config or plugins change. Keystore: `C:\Users\T7SEN\keys\ourspace.jks`. **Never change `appId`** (`me.t7senlovesbesho`). Display name `appName: 'Our Space'` is what the user reads. Full plugin matrix and BiometricGate state machine: `references/capacitor-native.md`.
+`isNative()` from `src/lib/native.ts` is the only sanctioned platform check. Plugin imports are dynamic to keep web bundles slim. Hosted-webapp via `server.url` (Section 3.7). Notification channel `default` created with `vibration: true` and importance 4 to suppress heads-up banners while foregrounded. Web is built via Vercel; APK is rebuilt only when Capacitor config or plugins change. Keystore: `C:\Users\T7SEN\keys\ourspace.jks`. **Never change `appId`** (`me.t7senlovesbesho`). Display name `appName: 'Our Space'` is what the user reads. `@capacitor/device` + `@capacitor/app` feed Sentry context (model, OS, app version) via `SentryUserProvider`. `@capacitor/geolocation` powers live distance in `DistanceCard` (coarse fix, Haversine to `PARTNER_COORDS`). `@capacitor/keyboard` exposes `hideKeyboard()` via `src/lib/keyboard.ts` for form-submit-success effects. Full plugin matrix, plugin-add checklist, and BiometricGate state machine: `references/capacitor-native.md`.
 
 ---
 
 ## 8. Deployment (Summary)
 
-Vercel auto-deploys on push to `main`. Required env vars: `AUTH_SECRET_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `SENTRY_AUTH_TOKEN`. **No `VAPID_*` env vars** — Web Push is removed. `FIREBASE_PRIVATE_KEY` `\n` literals are intentional — `replace(/\\n/g, '\n')` runs at runtime. Sentry org `t7sen-c0`, project `our-space`. Bump `versionCode` in `android/app/build.gradle` for every Android release. `pnpm-lock.yaml` is committed. Full pipeline, smoke tests, troubleshooting: `references/deployment.md`.
+Vercel auto-deploys on push to `main`. Required env vars: `AUTH_SECRET_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `SENTRY_AUTH_TOKEN`. **No `VAPID_*` env vars** — Web Push is removed. `FIREBASE_PRIVATE_KEY` `\n` literals are intentional — `replace(/\\n/g, '\n')` runs at runtime. Sentry org `t7sen-c0`, project `our-space`. Bump `versionCode` in `android/app/build.gradle` for every Android release. Adding a Capacitor plugin requires `pnpm add` → `npx cap sync android` → manifest perms (if any) → `versionCode` bump → APK rebuild; until sync + reinstall, the JS layer loads but native calls fall back silently. `pnpm-lock.yaml` is committed. Full pipeline, smoke tests, troubleshooting: `references/deployment.md`.
 
 ---
 
@@ -181,12 +185,12 @@ src/
 │   ├── capacitor-init.tsx
 │   ├── theme-provider.tsx
 │   ├── global-logger.tsx
-│   ├── navigation/             # top-navbar, floating-navbar (5 primary tabs + More sheet)
+│   ├── navigation/             # top-navbar (Heart icon mobile, wordmark md:+), floating-navbar (5 primary tabs + More sheet)
 │   ├── dashboard/              # Cards: Mood, Counter, Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
 │   ├── review/                 # Form, reveal card, summary panel, history drawer
 │   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary, Sheet
 ├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges, use-pull-to-refresh
-├── lib/                        # auth-utils, cairo-time, native, haptic, clipboard, logger, constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
+├── lib/                        # auth-utils, cairo-time, native, haptic, keyboard, clipboard, logger, constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
 └── instrumentation.ts          # Sentry
 ```
 

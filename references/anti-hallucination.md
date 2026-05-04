@@ -36,6 +36,16 @@ Every entry above produces a runtime failure, a bundle that won't compile, or a 
 
 ---
 
+## Easy mistakes that aren't on the removed list
+
+These are not removed — they exist and are wired up. Listed because their existence is non-obvious and an agent might assume the wrong thing:
+
+- **`@capacitor/geolocation`** is in use, not dormant. `DistanceCard` consumes it for live distance to `PARTNER_COORDS`. The `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` perms in `AndroidManifest.xml` are real, not stale.
+- **`@capacitor/device`** is in use for Sentry device context inside `SentryUserProvider`. Don't propose adding device-info plugins; one already runs.
+- **`@capacitor/screen-orientation`** IS still installed but currently unused — flagging here so an agent doesn't mistake it for a future-use plugin already wired up. Either propose a real use or removal.
+
+---
+
 ## Cross-References
 
 - `SKILL.md` Section 2 — same table, mirrored for the skill-loading path

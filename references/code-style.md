@@ -66,6 +66,9 @@ Consolidated reference for the conventions agents must follow when writing or ed
   - Page wrappers: `p-4 md:p-12`
   - Card grids: `gap-4 md:gap-6`
   - Floating-navbar clearance: `pb-28 md:pb-32` on dashboard / `/review`
+- **Tap targets:** icon-only buttons need ≥24dp effective hit area. Use `p-1.5` minimum for inline icons inside cards; `p-2` (≥28dp) for primary actions like panel close, drawer dismiss, push-toast dismiss. Add `active:scale-95` for tactile feedback. Buttons that toggle on `:hover` only (e.g. `opacity-0 group-hover:opacity-100`) are invisible/inaccessible on mobile — gate the `opacity-0` behind `md:` so mobile sees the button at a muted color.
+- **Form inputs (mobile):** set `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` deliberately per field. Examples: search → `type="search" inputMode="search" enterKeyHint="search"`; login passcode → `autoComplete="current-password" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go"`. Don't blanket-disable autocorrect on prose textareas — the user wants typo-correction in notes/rules.
+- **Form submit-success handlers** call `void hideKeyboard()` from `@/lib/keyboard` so the soft keyboard dismisses when the form closes. Native-only; web is a no-op.
 - **Author identity color** lives in `AUTHOR_COLORS` in `src/lib/constants.ts`, backed by `--author-daddy` and `--author-kitten` tokens in `globals.css`. Use the typed map (`AUTHOR_COLORS[author].text` / `bg` / `border` / etc.) — never interpolate (`bg-author-${author}`); Tailwind v4's scanner won't find dynamic class strings.
 - **Skeletons match the shape of the eventual content.** No center spinners for page-level loads — every feature page uses `animate-pulse` placeholders shaped like the loaded layout. Inline `Loader2 animate-spin` is correct on action buttons (save, send, decide); incorrect as a route-level loading state.
 - WCAG AA contrast minimum.

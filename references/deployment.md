@@ -131,6 +131,16 @@ Because of the `server.url` architecture, the APK is rebuilt **only** when:
 
 **Routine code changes do NOT require an APK rebuild.** They ship via Vercel and the WebView picks them up on next launch.
 
+### Adding a new Capacitor plugin — checklist
+
+1. `pnpm add @capacitor/<plugin-name>@^8` (match the Capacitor 8 line).
+2. `npx cap sync android` — registers the plugin's native bridge in the Android project.
+3. If the plugin needs new permissions, edit `android/app/src/main/AndroidManifest.xml`.
+4. Bump `versionCode` in `android/app/build.gradle`.
+5. Rebuild and sideload the APK.
+
+Until step 2 + 5 ship, the JS layer will load but native calls fall back silently because the bridge isn't registered. The dynamic-import + try/catch pattern absorbs this without crashing.
+
 ### Prerequisites
 
 - Android Studio with the Android 14 SDK or newer

@@ -63,7 +63,7 @@ export const RichTextEditor = forwardRef<
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="write" className="mt-0 pt-2">
+          <TabsContent value="write" className="mt-0 pt-2" forceMount>
             <Textarea
               ref={ref}
               disabled={disabled}

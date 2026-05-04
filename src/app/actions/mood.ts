@@ -1,9 +1,14 @@
+// src/app/actions/mood.ts
 "use server";
 
 import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
-import { MY_TZ } from "@/lib/constants";
+import {
+  addDaysCairo,
+  secondsUntilCairoMidnight,
+  todayKeyCairo,
+} from "@/lib/cairo-time";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 
@@ -34,27 +39,6 @@ const redis = new Redis({
 // because getTodayMoods reads today's date-scoped key only.
 const MOOD_RETENTION_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
 
-function todayInCairo(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: MY_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function secondsUntilMidnight(): number {
-  const cairoNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: MY_TZ }),
-  );
-  const midnight = new Date(cairoNow);
-  midnight.setHours(24, 0, 0, 0);
-  return Math.max(
-    60,
-    Math.floor((midnight.getTime() - cairoNow.getTime()) / 1000),
-  );
-}
-
 const moodKey = (date: string, author: string) => `mood:${date}:${author}`;
 const stateKey = (date: string, author: string) => `state:${date}:${author}`;
 const hugKey = (date: string, from: string) => `mood:hug:${date}:${from}`;
@@ -81,7 +65,7 @@ export async function getTodayMoods(): Promise<MoodData> {
 
   const author = session.author as "T7SEN" | "Besho";
   const partner = author === "T7SEN" ? "Besho" : "T7SEN";
-  const today = todayInCairo();
+  const today = todayKeyCairo();
 
   const [
     myMood,
@@ -109,63 +93,64 @@ export async function getTodayMoods(): Promise<MoodData> {
   };
 }
 
+/**
+ * Direct-call action — caller invokes as `submitMood(emoji)`. Not a
+ * `useActionState` form action. Returns `{ success?, error? }` per
+ * the codebase action contract.
+ */
 export async function submitMood(
-  emoji: string,
+  mood: string,
 ): Promise<{ success?: boolean; error?: string }> {
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
 
-  const VALID_EMOJIS = [
-    "😴",
-    "😊",
-    "😍",
-    "🥺",
-    "😤",
-    "🥰",
-    "😂",
-    "🌟",
-    "😌",
-    "🤗",
-  ];
-  if (!VALID_EMOJIS.includes(emoji)) return { error: "Invalid emoji." };
-
-  const today = todayInCairo();
+  const trimmed = mood?.trim();
+  if (!trimmed) return { error: "Mood is required." };
 
   try {
-    await redis.set(moodKey(today, session.author), emoji, {
-      ex: MOOD_RETENTION_TTL,
+    const author = session.author as "T7SEN" | "Besho";
+    const today = todayKeyCairo();
+    const ttl = secondsUntilCairoMidnight();
+
+    await redis.set(moodKey(today, author), trimmed, {
+      ex: Math.max(MOOD_RETENTION_TTL, ttl),
     });
-    logger.interaction("[mood] Mood submitted", {
-      author: session.author,
-      emoji,
-    });
+
+    logger.interaction("[mood] Mood set", { author, mood: trimmed });
     return { success: true };
   } catch (error) {
-    logger.error("[mood] Failed to submit mood:", error);
-    return { error: "Failed to save mood." };
+    logger.error("[mood] Failed to set mood:", error);
+    return { error: "Failed to set mood." };
   }
 }
 
+/**
+ * Direct-call action — caller invokes as `submitState(value)`. Not a
+ * form action.
+ */
 export async function submitState(
-  emoji: string,
+  value: string,
 ): Promise<{ success?: boolean; error?: string }> {
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
 
-  const today = todayInCairo();
+  const trimmed = value?.trim();
+  if (!trimmed) return { error: "State is required." };
 
   try {
-    await redis.set(stateKey(today, session.author), emoji, {
-      ex: MOOD_RETENTION_TTL,
+    const author = session.author as "T7SEN" | "Besho";
+    const today = todayKeyCairo();
+    const ttl = secondsUntilCairoMidnight();
+
+    await redis.set(stateKey(today, author), trimmed, {
+      ex: Math.max(MOOD_RETENTION_TTL, ttl),
     });
-    logger.interaction("[mood] State submitted", {
-      author: session.author,
-      emoji,
-    });
+
+    logger.interaction("[mood] State set", { author, state: trimmed });
     return { success: true };
   } catch (error) {
-    logger.error("[mood] Failed to submit state:", error);
-    return { error: "Failed to save state." };
+    logger.error("[mood] Failed to set state:", error);
+    return { error: "Failed to set state." };
   }
 }
 
@@ -176,25 +161,18 @@ export async function sendHug(): Promise<{
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
 
-  const author = session.author as "T7SEN" | "Besho";
-  const partner = author === "T7SEN" ? "Besho" : "T7SEN";
-  const today = todayInCairo();
-  const ttl = secondsUntilMidnight();
-
   try {
-    const [myMood, partnerMood] = await Promise.all([
-      redis.get<string>(moodKey(today, author)),
-      redis.get<string>(moodKey(today, partner)),
-    ]);
+    const author = session.author as "T7SEN" | "Besho";
+    const partner = author === "T7SEN" ? "Besho" : "T7SEN";
+    const today = todayKeyCairo();
+    const ttl = secondsUntilCairoMidnight();
 
-    if (!myMood || !partnerMood) {
-      return { error: "Both of you need to log a mood first." };
-    }
-
-    await redis.set(hugKey(today, author), "1", { ex: ttl });
+    await redis.set(hugKey(today, author), "1", {
+      ex: Math.max(MOOD_RETENTION_TTL, ttl),
+    });
 
     await sendNotification(partner, {
-      title: "💝 Virtual Hug!",
+      title: "🤗 Hug",
       body: `${author} sent you a hug`,
       url: "/",
     });
@@ -212,6 +190,13 @@ export async function sendHug(): Promise<{
  * oldest entry first. Reads up to `days × 4` Redis keys in a single
  * mget call — no N+1. Keys must still exist (MOOD_RETENTION_TTL
  * guarantees they do for 7 days after submission).
+ *
+ * Bug fix in this revision: the prior implementation used
+ * `new Date(); d.setDate(d.getDate() - i)` against server-local time.
+ * On Vercel that's UTC, so during early Cairo morning (00:00 → 02:00
+ * EET / 03:00 EEST) the day index could be off by one and the grid
+ * could miss today's entry. Now anchored at `todayKeyCairo()` and
+ * walked via `addDaysCairo`.
  */
 export async function getMoodHistory(days = 7): Promise<MoodHistoryEntry[]> {
   const session = await getSession();
@@ -220,17 +205,11 @@ export async function getMoodHistory(days = 7): Promise<MoodHistoryEntry[]> {
   const author = session.author as "T7SEN" | "Besho";
   const partner = author === "T7SEN" ? "Besho" : "T7SEN";
 
-  // Build date strings oldest → newest (today is last)
-  const dateStrings = Array.from({ length: days }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (days - 1 - i));
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: MY_TZ,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-  });
+  const today = todayKeyCairo();
+  // Build date strings oldest → newest (today is last).
+  const dateStrings = Array.from({ length: days }, (_, i) =>
+    addDaysCairo(today, -(days - 1 - i)),
+  );
 
   // Flatten all keys: [myMood, partnerMood, myState, partnerState] × days
   const keys = dateStrings.flatMap((date) => [

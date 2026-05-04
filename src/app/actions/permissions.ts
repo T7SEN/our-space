@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { startOfCairoMonthMs } from "@/lib/cairo-time";
 import {
   PERMISSION_CATEGORIES,
   type PermissionCategory,
@@ -162,26 +163,6 @@ function formatCooldownRemaining(seconds: number): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.ceil(hours / 24);
   return `${days}d`;
-}
-
-/**
- * UTC ms for the start of the current calendar month in Cairo. Used as
- * the lower bound for quota windows. Approximated at +02:00 (EET);
- * a few hours' drift across DST boundaries is acceptable for monthly
- * quotas.
- */
-function startOfCairoMonthMs(now: number): number {
-  const d = new Date(now);
-  // Format as "YYYY-MM" in Cairo timezone.
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Cairo",
-    year: "numeric",
-    month: "2-digit",
-  });
-  const parts = fmt.formatToParts(d);
-  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  return new Date(`${year}-${month}-01T00:00:00+02:00`).getTime();
 }
 
 /**

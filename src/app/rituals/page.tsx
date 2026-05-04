@@ -56,13 +56,12 @@ import {
   WEEKDAY_LABELS,
 } from "@/lib/rituals-constants";
 import {
-  dateKeyInTz,
   formatWindowRange,
   isPrescribedDay,
   nextPrescribedDateKey,
-  tzWallClockToUtcMs,
   type RitualTodayState,
 } from "@/lib/rituals";
+import { dateKeyInTz, tzWallClockToUtcMs } from "@/lib/cairo-time";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";

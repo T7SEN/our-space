@@ -19,14 +19,16 @@ import {
 import {
   computeRitualTodayState,
   computeStreak,
-  dateKeyInTz,
   parseAndNormalizeHHMM,
-  previousDateKey,
-  todayKeyCairo,
-  tzWallClockToUtcMs,
   type CadenceConfig,
   type RitualTodayState,
 } from "@/lib/rituals";
+import {
+  dateKeyInTz,
+  previousDateKey,
+  todayKeyCairo,
+  tzWallClockToUtcMs,
+} from "@/lib/cairo-time";
 
 export type RitualOwner = "T7SEN" | "Besho";
 export type RitualCadence = "daily" | "weekly" | "every_n_days";

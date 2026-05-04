@@ -114,7 +114,9 @@ export default function DashboardPage() {
 
             {/* ── Row 2: Mood (8 cols) + Birthday (4 cols) ── */}
             <div className="md:col-span-8 md:h-full">
-              <MoodCard key={refreshKey} currentAuthor={currentAuthor} />
+              <ErrorBoundary label="MoodCard">
+                <MoodCard key={refreshKey} currentAuthor={currentAuthor} />
+              </ErrorBoundary>
             </div>
             <div className="md:col-span-4 md:h-full">
               <BirthdayCard now={now} />
@@ -122,7 +124,12 @@ export default function DashboardPage() {
 
             {/* ── Row 3: Mood history — full width ── */}
             <div className="md:col-span-12">
-              <MoodHistoryGrid key={refreshKey} currentAuthor={currentAuthor} />
+              <ErrorBoundary label="MoodHistoryGrid">
+                <MoodHistoryGrid
+                  key={refreshKey}
+                  currentAuthor={currentAuthor}
+                />
+              </ErrorBoundary>
             </div>
 
             {/* ── Row 4: Timezone | Weather | Moon ── */}
@@ -150,13 +157,17 @@ export default function DashboardPage() {
 
             {/* ── Row 6: Safe Word — bottom, rarely used ── */}
             <div className="md:col-span-12">
-              <SafeWordCard currentAuthor={currentAuthor} />
+              <ErrorBoundary label="SafeWordCard">
+                <SafeWordCard currentAuthor={currentAuthor} />
+              </ErrorBoundary>
             </div>
 
             {/* ── Row 7: Safe Word History — T7SEN only ── */}
             {isT7SEN && (
               <div className="md:col-span-12">
-                <SafeWordHistory key={refreshKey} />
+                <ErrorBoundary label="SafeWordHistory">
+                  <SafeWordHistory key={refreshKey} />
+                </ErrorBoundary>
               </div>
             )}
           </div>

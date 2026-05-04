@@ -18,6 +18,7 @@ import { RevealCard } from "@/components/review/reveal-card";
 import { WeekSummaryPanel } from "@/components/review/week-summary-panel";
 import { HistoryDrawer } from "@/components/review/history-drawer";
 import type { ReviewAuthor, ReviewBundle } from "@/lib/review-constants";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 function isAuthor(value: string | null): value is ReviewAuthor {
   return value === "T7SEN" || value === "Besho";
@@ -154,10 +155,12 @@ function ReviewPageInner() {
               onPoll={handleRefresh}
             />
 
-            <WeekSummaryPanel
-              summary={bundle.summary}
-              currentAuthor={currentAuthor}
-            />
+            <ErrorBoundary label="WeekSummaryPanel">
+              <WeekSummaryPanel
+                summary={bundle.summary}
+                currentAuthor={currentAuthor}
+              />
+            </ErrorBoundary>
 
             <HistoryDrawer />
           </>
@@ -187,9 +190,12 @@ function StateCard({
   onPoll,
 }: StateCardProps) {
   // Revealed → side-by-side, regardless of past-vs-current.
+  // Revealed → side-by-side, regardless of past-vs-current.
   if (bundle.revealed) {
     return (
-      <RevealCard revealed={bundle.revealed} currentAuthor={currentAuthor} />
+      <ErrorBoundary fallback={<RevealCardFallback />}>
+        <RevealCard revealed={bundle.revealed} currentAuthor={currentAuthor} />
+      </ErrorBoundary>
     );
   }
 
@@ -291,5 +297,34 @@ function ReviewSkeleton() {
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
       </div>
     </div>
+  );
+}
+
+function RevealCardFallback() {
+  return (
+    <section
+      className={cn(
+        "rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 sm:p-8",
+        "backdrop-blur-xl shadow-xl shadow-black/20",
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <div className="rounded-full bg-amber-500/10 p-2.5 text-amber-400">
+          <MessageSquareQuote className="h-4 w-4" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-amber-300/90">
+            This week&apos;s reflection couldn&apos;t load
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground/80">
+            Both reflections are saved — they&apos;re just not rendering right
+            now. Try refreshing the page.
+          </p>
+          <p className="text-[10px] uppercase tracking-wider text-amber-300/50">
+            If this keeps happening, the data is preserved in history
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }

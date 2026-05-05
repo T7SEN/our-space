@@ -4,12 +4,12 @@ Reference for Vercel (web) and Android (Capacitor) deployment pipelines, environ
 
 > **Tier: Vercel Hobby.** Notable consequences:
 >
-> - **Vercel Cron runs once per day max.** The `* * * * *` schedule in `vercel.json` is honored as daily, not minute-cadence. **Cron-job.org is the primary minute-cadence trigger** (see below); `vercel.json` stays as a redundant daily fallback (harmless because all cron endpoints dedup).
+> - **Vercel Cron is unused on this project.** Hobby caps cron at once-per-day, and any `vercel.json` cron schedule more frequent than that breaks the build outright. **Cron-job.org is the sole trigger** for `/api/cron/*` (see below). There is intentionally no `vercel.json` in the repo.
 > - 12 serverless functions max (we're well under).
 > - 100 GB bandwidth / month (a 2-user app is nowhere near).
 > - No team members on the project.
 >
-> Mention this any time you propose new cron / scheduled work — Vercel Cron is the daily fallback, cron-job.org is the minute-cadence primary.
+> Mention this any time you propose new cron / scheduled work — every cron-style trigger goes through cron-job.org's dashboard, never `vercel.json`. Adding a `vercel.json` with crons will fail the next deploy.
 
 ## Topology
 
@@ -47,26 +47,25 @@ If you ever see `Lockfile not found` in build logs, `pnpm-lock.yaml` is gitignor
 
 ### Cron triggers
 
-Two parallel triggers hit `/api/cron/ritual-windows`. Both authenticate via `Authorization: Bearer ${CRON_SECRET}` — the endpoint refuses any request without it. The endpoint dedups via `ritual:fcm:sent:{ritualId}:{owningDateKey}` (36h TTL, atomic `SET NX`), so simultaneous fires from both triggers never produce duplicate FCMs.
+The single trigger for every `/api/cron/*` endpoint is **cron-job.org** (free tier, 1-minute cadence). There is no `vercel.json` cron entry — Hobby would reject it at build time.
 
-**Primary: cron-job.org — minute-cadence.**
+The endpoint authenticates via `Authorization: Bearer ${CRON_SECRET}` — refuses any request without it. Per-target dedup (e.g. `ritual:fcm:sent:{ritualId}:{owningDateKey}` for ritual windows, atomic `SET NX EX 36h`) makes accidental double-fires safe.
 
-- Vendor-managed cron, free tier, 1-minute cadence honored.
-- Configured in the cron-job.org dashboard:
-  - URL: `https://t7senlovesbesho.me/api/cron/ritual-windows`
-  - Method: `GET`
-  - Schedule: `* * * * *` (every minute)
-  - Headers: `Authorization: Bearer <CRON_SECRET>` (matches Vercel env var)
-  - Notify on failure: ON, to the operator's email
-  - Save responses: ON (response is tiny JSON `{ok, scanned, fired, dedupHits, durationMs}` and very useful in history view)
-- The cron-job.org account is single-tenant (operator's own), not in the repo. Treat it as out-of-band infra. If access is lost or the account is suspended, the endpoint and dedup logic are unaffected — re-create the cron entry pointing at the same URL.
+**Configuration (out-of-band, in the cron-job.org dashboard):**
 
-**Fallback: Vercel Cron — daily (Hobby tier).**
+- URL: `https://t7senlovesbesho.me/api/cron/ritual-windows`
+- Method: `GET`
+- Schedule: `* * * * *` (every minute)
+- Time zone: `Africa/Cairo` (cosmetic — endpoint computes Cairo time internally either way)
+- Timeout: 30 seconds
+- Headers: `Authorization: Bearer <CRON_SECRET>` matching the Vercel env var
+- Save responses in job history: ON — endpoint returns tiny JSON `{ok, scanned, fired, dedupHits, durationMs}` that's invaluable for diagnosis
+- Notify on failure: ON to the operator's email — this is your only outage signal
+- Auto-disable on repeated failures: ON
 
-- `vercel.json` declares the same `/api/cron/ritual-windows` at `* * * * *`, but Hobby runs it once per day max.
-- Kept as redundancy: if cron-job.org is down for a day, the daily Vercel tick still catches the windows that opened in the trailing 5 minutes (so it'll only catch ~5 minutes of windows per day — not great, but better than nothing during an outage).
-- Auto-upgrades to true minute cadence the moment the Vercel project moves to Pro+; no code change needed.
-- Don't remove `vercel.json` — keep both triggers wired.
+The cron-job.org account is single-tenant (operator's own), not in the repo. Treat it as out-of-band infra. If access is lost or the account is suspended, the endpoint and dedup logic are unaffected — re-create the cron entry pointing at the same URL.
+
+**No fallback trigger.** If cron-job.org is down, no FCMs fire from cron until access is restored. Local notifications scheduled by the rituals page still fire on-device on Android (the only reminder layer that runs offline). If `cron-job.org` reliability becomes a real problem, options are: (1) a second cron-job.org-equivalent vendor pointed at the same URL (dedup makes parallel fires safe), or (2) Vercel Pro upgrade so `vercel.json` can run minute-cadence cron natively.
 
 ### Required environment variables
 

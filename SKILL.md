@@ -57,7 +57,7 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - `<DeviceTracker />` (root-layout-mounted) is the sole writer of `device:*`. `pingDevice` runs on mount + 60s heartbeat. Author claim is sticky. Sir reads at `/admin/devices`. Don't call `pingDevice` from feature code; don't conflate with `usePresence`.
 - Restraint mode = `mode:restraint:Besho`. Every Besho-writable server action MUST call `assertWriteAllowed(session.author)` from `@/lib/restraint` and return its error if non-null. Sir is never restrained. Safeword is intentionally exempt. Toggled from `<RestraintToggle>` on `/admin` landing.
 - `auth:failures` is the failed-login ZSET (capped 100). Written exclusively from `login()` in `actions/auth.ts`; read via `getAuthFailures()` (Sir-only). Don't reuse for unrelated security events.
-- **Project is on Vercel Hobby.** Vercel Cron runs once per day max — `vercel.json` is the daily fallback. **Minute-cadence trigger is cron-job.org**, configured out-of-band in the operator's account (not in the repo). Both fire `/api/cron/ritual-windows`; dedup makes that safe. New cron-style features should ride the same `/api/cron/*` pattern with bearer auth and ZSET-based dedup.
+- **Project is on Vercel Hobby; there is intentionally no `vercel.json`.** Hobby rejects builds with cron schedules more frequent than once-per-day. Every cron trigger goes through **cron-job.org** (configured in the operator's account, minute cadence) hitting `/api/cron/*` with `Authorization: Bearer ${CRON_SECRET}`. New cron-style features should add a new `/api/cron/*` route + an entry in cron-job.org — never via `vercel.json`.
 
 ---
 

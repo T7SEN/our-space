@@ -317,7 +317,7 @@ There is no shared middleware. New Besho-writable actions must add the guard exp
 | -------------------------------------------- | ------ | ---- | ---------------------------------------------------------------------- |
 | `ritual:fcm:sent:{ritualId}:{owningDateKey}` | STRING | 36h  | Set with `SET NX` by the cron when the FCM has fired for this window   |
 
-Written exclusively from `src/app/api/cron/ritual-windows/route.ts`. The endpoint is hit by two triggers in parallel: cron-job.org (minute cadence, primary) and Vercel Cron (daily on Hobby, fallback). The atomic `NX` set is what prevents duplicate fires across overlapping ticks from either source. 36h TTL is comfortably longer than any realistic ritual window. If a tick fails after claiming the dedup key, that window won't retry — accept "no notification" over "two notifications".
+Written exclusively from `src/app/api/cron/ritual-windows/route.ts`. Hit by cron-job.org every minute (sole trigger; no `vercel.json` cron). The atomic `NX` set is what prevents duplicate fires across overlapping ticks. 36h TTL is comfortably longer than any realistic ritual window. If a tick fails after claiming the dedup key, that window won't retry — accept "no notification" over "two notifications".
 
 ### Devices (per-device session tracking)
 

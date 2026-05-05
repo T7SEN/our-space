@@ -11,6 +11,7 @@ import {
   type LedgerEntryType,
 } from "@/lib/ledger-constants";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 
 export interface LedgerEntry {
   id: string;
@@ -134,6 +135,19 @@ export async function deleteLedgerEntry(
     const existing = await redis.get<LedgerEntry>(entryKey(id));
     if (!existing) return { error: "Entry not found." };
 
+    const score = await redis.zscore(INDEX_KEY, id);
+    await moveToTrash(redis, {
+      feature: "ledger",
+      id,
+      label: `${existing.type === "reward" ? "+" : "−"} ${existing.title}`,
+      deletedBy: session.author,
+      payload: existing,
+      indexScore:
+        typeof score === "number" ? score : Number(score) || existing.timestamp,
+      recordKey: entryKey(id),
+      indexKey: INDEX_KEY,
+    });
+
     const pipeline = redis.pipeline();
     pipeline.del(entryKey(id));
     pipeline.zrem(INDEX_KEY, id);
@@ -167,7 +181,38 @@ export async function purgeAllLedgerEntries(): Promise<{
     return { error: "Only Sir can purge the ledger." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<LedgerEntry[]>(...ids.map(entryKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const entry = records[i];
+          return {
+            feature: "ledger" as const,
+            id: p.id,
+            label: entry
+              ? `${entry.type === "reward" ? "+" : "−"} ${entry.title}`
+              : p.id,
+            deletedBy: session.author,
+            payload: entry ?? null,
+            indexScore: p.score,
+            recordKey: entryKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) pipeline.del(entryKey(id));

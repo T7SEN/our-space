@@ -226,6 +226,68 @@ These are read-only from the app's perspective — set manually via redis-cli or
 
 ---
 
+## Sir-Only Admin Surfaces
+
+Every namespace below is read or written exclusively by `src/app/actions/admin.ts` (Sir-only via `requireSir()`) plus the helpers in `src/lib/trash.ts`, `src/lib/activity.ts`, and `src/lib/auth-utils.ts`.
+
+### Trash (soft-delete window)
+
+| Key                       | Type   | TTL    | Description                                                          |
+| ------------------------- | ------ | ------ | -------------------------------------------------------------------- |
+| `trash:{feature}:{id}`    | STRING | 7 days | JSON `TrashEntry` — payload + indexScore + recordKey + indexKey      |
+| `trash:index`             | ZSET   | none   | Global index, score = `deletedAt` ms, member = `{feature}::{id}`     |
+| `trash:index:{feature}`   | ZSET   | none   | Per-feature index, score = `deletedAt` ms, member = `id`             |
+
+`{feature}` is one of `notes` / `rules` / `tasks` / `ledger` / `permissions` / `rituals` / `timeline` / `reviews` (from `TrashFeature` in `src/lib/trash.ts`).
+
+`TrashEntry` shape (also in `src/lib/trash.ts`):
+
+```ts
+interface TrashEntry {
+  feature: TrashFeature
+  id: string
+  label: string          // human-readable preview shown on /admin/trash
+  deletedAt: number
+  deletedBy: Author
+  payload: unknown       // original JSON of the primary record
+  indexScore: number     // original score in the feature's index ZSET
+  recordKey: string      // e.g. note:{id}
+  indexKey: string       // e.g. notes:index
+  extraRecords?: { key: string; value: unknown }[]  // additional records (used by reviews — Besho's record sits here)
+}
+```
+
+**What restore re-creates:** the primary record JSON at `recordKey`, the `extraRecords` (if any), and the index ZSET entry at `(indexKey, indexScore, id)`.
+
+**What restore does NOT re-create** (intentionally lost):
+
+- Notes: reactions (`reactions:{id}`), pinned-set membership (`notes:pinned`), per-author counts (`notes:count:{author}`).
+- Permissions: audit log (`permission:audit:{id}`), quotas, auto-rules, denied-hashes (only the `purgeAllPermissions` path nukes those).
+- Rituals: occurrence index + per-date occurrence keys, current/longest streak.
+- Reviews: only T7SEN's record is in `payload`; Besho's lives in `extraRecords[0]`. The composite trash entry restores both.
+
+The 7-day TTL lives on the per-record JSON key. Index ZSET members are tombstones swept on read by `listTrash` (entries with `mget = null` get `zrem`'d in a best-effort pipeline).
+
+For features with composite IDs, the `TrashEntry.id` joins parts with `:` (e.g. `2026-04-27` for a review week). The global `trash:index` member uses `::` between feature and id to avoid collision with `:`-containing ids.
+
+### Activity feed
+
+| Key            | Type | Cap                  | Description                                         |
+| -------------- | ---- | -------------------- | --------------------------------------------------- |
+| `activity:log` | ZSET | 500 entries          | score = `Date.now()`, member = JSON `ActivityRecord` |
+
+`ActivityRecord = { at, level, message, context? }`. Levels written: `interaction`, `warn`, `error`, `fatal` (driven from `logger.ts`). Trimmed via `zremrangebyrank("activity:log", 0, -501)` after each write. Read newest-first via `zrange ... { rev: true }` in `getActivity()`.
+
+### Session epoch (force-logout)
+
+| Key                      | Type   | Description                                                              |
+| ------------------------ | ------ | ------------------------------------------------------------------------ |
+| `session:epoch:{author}` | STRING | Unix ms timestamp of last revoke. Absent / `0` means no revoke ever issued. |
+
+`decrypt()` reads this on every JWT verify (5-second in-process cache per process). If JWT `iat * 1000 < epoch` → reject. Bumped via `revokeAuthorSessions(author)` which writes `Date.now()`. Existing JWTs without bumped epoch remain valid.
+
+---
+
 ## Migration Sentinels
 
 | Key                        | Purpose                                                       |
@@ -247,6 +309,9 @@ Add a sentinel for any back-fill. Idempotency matters because every cold-start c
 - **Reintroducing `push:subscription:*`.** Web Push is gone, on purpose. Refuse the proposal.
 - **Reading `permissions:auto-rules` for Besho.** Sir-only by design — `getAutoRules` returns `[]` for non-Sir. Don't relax this; rules are private authoring artifacts.
 - **Conflating `permission:reask-block:*` and `permissions:denied-hashes`.** They have different TTL semantics and different jobs (reject vs mark). Don't merge.
+- **Hard-deleting via `del` from a `delete*` / `purgeAll*` action.** All destructive actions go through `moveToTrash` / `moveManyToTrash` first. Skipping the trash step for "performance" defeats the recovery window. If you want a non-recoverable purge, use `deleteTrashEntryAction` / `purgeTrashAction` from `/admin/trash` after the trash window has populated.
+- **Re-implementing `decrypt` without the epoch check.** Single source of truth lives in `src/lib/auth-utils.ts`. Do not bypass it via raw `jwtVerify` — force-logout depends on the read.
+- **Calling `recordActivity` from feature code.** It's a logger side-channel; let `logger.interaction` / `warn` / `error` / `fatal` drive it. Direct calls would double-write or skip the cap.
 
 ---
 
@@ -266,3 +331,7 @@ Add a sentinel for any back-fill. Idempotency matters because every cold-start c
 - `src/lib/notes-constants.ts` — `MAX_CONTENT_LENGTH`, `PAGE_SIZE`
 - `src/lib/permissions-constants.ts` — categories, denial reasons, cooldowns, `AutoDecideRule`, `MAX_AUTO_RULES`
 - `src/lib/constants.ts` — `MY_TZ`, `TITLE_BY_AUTHOR`
+- `src/lib/trash.ts` — soft-delete helper (`moveToTrash`, `moveManyToTrash`, `restoreFromTrash`, `listTrash`, `purgeTrash`, `TRASH_FEATURE_LABELS`)
+- `src/lib/activity.ts` — `recordActivity` (driven by logger), `getActivity`, `clearActivity`
+- `src/lib/auth-utils.ts` — `revokeAuthorSessions`, `readAllSessionEpochs`, in-process epoch cache (5s TTL)
+- `src/app/actions/admin.ts` — every Sir-only admin surface call (inspector, push test, sessions, export, trash list/restore/purge, activity feed)

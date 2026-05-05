@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 import {
   HISTORY_DOT_ROW_DAYS,
   MAX_EVERY_N_DAYS,
@@ -803,6 +804,24 @@ export async function deleteRitual(
     return { error: "Only Sir can delete rituals." };
 
   try {
+    const existing = await redis.get<Ritual>(ritualKey(id));
+    if (existing) {
+      const score = await redis.zscore(INDEX_KEY, id);
+      await moveToTrash(redis, {
+        feature: "rituals",
+        id,
+        label: existing.title,
+        deletedBy: session.author,
+        payload: existing,
+        indexScore:
+          typeof score === "number"
+            ? score
+            : Number(score) || existing.createdAt,
+        recordKey: ritualKey(id),
+        indexKey: INDEX_KEY,
+      });
+    }
+
     const dateKeys = (await redis.zrange(
       occurrencesIndexKey(id),
       0,
@@ -880,7 +899,36 @@ export async function purgeAllRituals(): Promise<{
     return { error: "Only Sir can purge rituals." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<Ritual[]>(...ids.map(ritualKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const r = records[i];
+          return {
+            feature: "rituals" as const,
+            id: p.id,
+            label: r?.title ?? p.id,
+            deletedBy: session.author,
+            payload: r ?? null,
+            indexScore: p.score,
+            recordKey: ritualKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const allOccurrenceDateKeys: { ritualId: string; dateKey: string }[] = [];
     for (const id of ids) {

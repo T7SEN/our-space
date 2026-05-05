@@ -8,6 +8,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { startOfCairoMonthMs } from "@/lib/cairo-time";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 import {
   PERMISSION_CATEGORIES,
   type PermissionCategory,
@@ -1040,8 +1041,23 @@ export async function deletePermissionRequest(
     return { error: "Only Sir can delete permission requests." };
 
   try {
-    const exists = await redis.exists(permissionKey(id));
-    if (!exists) return { error: "Request not found." };
+    const existing = await redis.get<PermissionRequest>(permissionKey(id));
+    if (!existing) return { error: "Request not found." };
+
+    const score = await redis.zscore(INDEX_KEY, id);
+    await moveToTrash(redis, {
+      feature: "permissions",
+      id,
+      label: existing.body.slice(0, 80),
+      deletedBy: session.author,
+      payload: existing,
+      indexScore:
+        typeof score === "number"
+          ? score
+          : Number(score) || existing.requestedAt,
+      recordKey: permissionKey(id),
+      indexKey: INDEX_KEY,
+    });
 
     const pipeline = redis.pipeline();
     pipeline.del(permissionKey(id));
@@ -1069,7 +1085,37 @@ export async function purgeAllPermissions(): Promise<{
     return { error: "Only Sir can purge permissions." };
 
   try {
-    const ids = await redis.zrange<string[]>(INDEX_KEY, 0, -1);
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<PermissionRequest[]>(...ids.map(permissionKey))) ??
+        [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const req = records[i];
+          return {
+            feature: "permissions" as const,
+            id: p.id,
+            label: req?.body?.slice(0, 80) ?? p.id,
+            deletedBy: session.author,
+            payload: req ?? null,
+            indexScore: p.score,
+            recordKey: permissionKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) {

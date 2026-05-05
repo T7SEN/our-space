@@ -5,6 +5,8 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import type { Author } from "@/lib/constants";
 
 export interface Milestone {
   id: string;
@@ -112,6 +114,19 @@ export async function deleteMilestone(
       return { error: "You can only delete your own milestones." };
     }
 
+    const score = await redis.zscore(INDEX_KEY, id);
+    await moveToTrash(redis, {
+      feature: "timeline",
+      id,
+      label: `${existing.emoji} ${existing.title}`,
+      deletedBy: author as Author,
+      payload: existing,
+      indexScore:
+        typeof score === "number" ? score : Number(score) || existing.date,
+      recordKey: milestoneKey(id),
+      indexKey: INDEX_KEY,
+    });
+
     const pipeline = redis.pipeline();
     pipeline.del(milestoneKey(id));
     pipeline.zrem(INDEX_KEY, id);
@@ -143,7 +158,36 @@ export async function purgeAllMilestones(): Promise<{
     return { error: "Only Sir can purge the timeline." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<Milestone[]>(...ids.map(milestoneKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const m = records[i];
+          return {
+            feature: "timeline" as const,
+            id: p.id,
+            label: m ? `${m.emoji} ${m.title}` : p.id,
+            deletedBy: author as Author,
+            payload: m ?? null,
+            indexScore: p.score,
+            recordKey: milestoneKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) pipeline.del(milestoneKey(id));

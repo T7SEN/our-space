@@ -12,6 +12,7 @@ import {
 import { sendNotification } from "@/app/actions/notifications";
 import { getReactionsForNotes } from "@/app/actions/reactions";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 
 export interface Note {
   id: string;
@@ -354,6 +355,18 @@ export async function deleteNote(
     const note = await redis.get<Note>(noteKey(id));
     if (!note) return { error: "Note not found." };
 
+    const score = await redis.zscore(INDEX_KEY, id);
+    await moveToTrash(redis, {
+      feature: "notes",
+      id,
+      label: note.content.slice(0, 80),
+      deletedBy: author,
+      payload: note,
+      indexScore: typeof score === "number" ? score : Number(score) || note.createdAt,
+      recordKey: noteKey(id),
+      indexKey: INDEX_KEY,
+    });
+
     const pipeline = redis.pipeline();
     pipeline.del(noteKey(id));
     pipeline.del(`reactions:${id}`);
@@ -383,7 +396,38 @@ export async function purgeAllNotes(): Promise<{
   if (author !== "T7SEN") return { error: "Only Sir can purge notes." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({
+        id: String(raw[i]),
+        score: Number(raw[i + 1]) || 0,
+      });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records = (await redis.mget<Note[]>(...ids.map(noteKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const note = records[i];
+          return {
+            feature: "notes" as const,
+            id: p.id,
+            label: note?.content?.slice(0, 80) ?? p.id,
+            deletedBy: author,
+            payload: note ?? null,
+            indexScore: p.score,
+            recordKey: noteKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) {

@@ -220,6 +220,13 @@ Run this after every non-trivial deploy:
 - [ ] Disable airplane mode → banner disappears, submit re-enables
 - [ ] APK install replaces existing app without resetting biometric enrollment (only relevant when bumping `versionCode`)
 - [ ] Sentry receives at least one event from the new release (check the Sentry dashboard)
+- [ ] `/admin` redirects to `/` when logged in as Besho (verify the layout guard fires)
+- [ ] `/admin/inspector` polls every 5s and shows live presence + masked FCM token preview
+- [ ] `/admin/push-test` form sends a custom FCM and the kitten device receives it (bypasses presence)
+- [ ] `/admin/activity` shows at least the most recent `[admin]` interaction event from the test push
+- [ ] Soft-delete: delete a throwaway note → confirm it appears in `/admin/trash` → restore → it's back at its original list position
+- [ ] `/admin/sessions` "Force logout" on Besho invalidates her active session within 5 seconds (kitten device redirects to login on next nav)
+- [ ] `/admin` "Summon kitten" two-step button delivers a max-priority FCM to Besho's device (bypasses presence; Android opens with sound + heads-up regardless of foreground state)
 
 ---
 

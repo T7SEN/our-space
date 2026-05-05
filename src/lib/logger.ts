@@ -1,5 +1,6 @@
 // src/lib/logger.ts
 import * as Sentry from "@sentry/nextjs";
+import { recordActivity } from "./activity";
 
 type LogLevel =
   | "trace"
@@ -66,6 +67,17 @@ class Logger {
     }
 
     // --- PRODUCTION (Sentry Logs + Exception Capture) ---
+    // Side-channel: persist `interaction` / `warn` / `error` / `fatal`
+    // events to the Redis-backed activity feed for the Sir-only viewer.
+    if (
+      level === "interaction" ||
+      level === "warn" ||
+      level === "error" ||
+      level === "fatal"
+    ) {
+      void recordActivity(level, message, context);
+    }
+
     const sentryLevel = SENTRY_LEVEL_MAP[level];
     const attributes: Record<string, string | number | boolean> = {};
 

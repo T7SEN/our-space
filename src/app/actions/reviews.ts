@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 import type { SafeWordEvent } from "@/app/actions/safeword";
 import {
   HISTORY_PAGE_SIZE,
@@ -642,6 +643,31 @@ export async function deleteReviewWeek(
     return { error: "Only Sir can delete reviews." };
 
   try {
+    const [t7sen, besho, scoreRaw] = await Promise.all([
+      redis.get<ReviewRecord>(reviewKey(weekDate, "T7SEN")),
+      redis.get<ReviewRecord>(reviewKey(weekDate, "Besho")),
+      redis.zscore(REVEALED_INDEX, weekDate),
+    ]);
+
+    if (t7sen || besho) {
+      await moveToTrash(redis, {
+        feature: "reviews",
+        id: weekDate,
+        label: `Week of ${weekDate}`,
+        deletedBy: session.author,
+        payload: t7sen ?? null,
+        indexScore:
+          typeof scoreRaw === "number"
+            ? scoreRaw
+            : Number(scoreRaw) || Date.now(),
+        recordKey: reviewKey(weekDate, "T7SEN"),
+        indexKey: REVEALED_INDEX,
+        extraRecords: [
+          { key: reviewKey(weekDate, "Besho"), value: besho ?? null },
+        ],
+      });
+    }
+
     const pipeline = redis.pipeline();
     pipeline.del(reviewKey(weekDate, "T7SEN"));
     pipeline.del(reviewKey(weekDate, "Besho"));
@@ -668,11 +694,46 @@ export async function purgeAllReviews(): Promise<{
     return { error: "Only Sir can purge reviews." };
 
   try {
-    const weekDates = (await redis.zrange(
-      REVEALED_INDEX,
-      0,
-      -1,
-    )) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(REVEALED_INDEX, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { weekDate: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({
+        weekDate: String(raw[i]),
+        score: Number(raw[i + 1]) || 0,
+      });
+    }
+    const weekDates = pairs.map((p) => p.weekDate);
+
+    if (weekDates.length > 0) {
+      const t7senKeys = weekDates.map((wd) => reviewKey(wd, "T7SEN"));
+      const beshoKeys = weekDates.map((wd) => reviewKey(wd, "Besho"));
+      const [t7senRecords, beshoRecords] = await Promise.all([
+        redis.mget<ReviewRecord[]>(...t7senKeys),
+        redis.mget<ReviewRecord[]>(...beshoKeys),
+      ]);
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => ({
+          feature: "reviews" as const,
+          id: p.weekDate,
+          label: `Week of ${p.weekDate}`,
+          deletedBy: session.author,
+          payload: t7senRecords?.[i] ?? null,
+          indexScore: p.score,
+          recordKey: reviewKey(p.weekDate, "T7SEN"),
+          indexKey: REVEALED_INDEX,
+          extraRecords: [
+            {
+              key: reviewKey(p.weekDate, "Besho"),
+              value: beshoRecords?.[i] ?? null,
+            },
+          ],
+        })),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const wd of weekDates) {

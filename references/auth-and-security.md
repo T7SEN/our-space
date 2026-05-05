@@ -29,6 +29,46 @@ async function getSession() {
 
 Note `await cookies()` — Next.js 16 makes it async.
 
+### Force-logout via session epoch
+
+`decrypt()` does more than `jwtVerify`. After verifying the signature, it reads `session:epoch:{author}` from Redis and rejects any JWT whose `iat * 1000 < epoch`. The epoch is bumped to `Date.now()` by `revokeAuthorSessions(author)` from the same module. Effect: every device with a previously-issued JWT is logged out on its next request — `getCurrentAuthor()` returns `null`, the user is redirected to login.
+
+A 5-second in-process cache fronts the Redis read so high-frequency requests (presence pings, badge polls) don't hammer Upstash. Cutover delay is bounded by that 5s.
+
+The Sir-only revoke surface is `forceLogoutAuthor()` in `src/app/actions/admin.ts`, exposed via `/admin/sessions`.
+
+---
+
+## Sir-Only Admin Tier
+
+`/admin` is a sub-tree gated two ways:
+
+1. **Layout guard** (`src/app/admin/layout.tsx`) — `redirect("/")` when `decrypt(cookieStore.get("session")?.value)?.author !== "T7SEN"`. Convenience only.
+2. **Action guard** (`requireSir()` in `src/app/actions/admin.ts`) — every server action duplicates the role check. **This** is the boundary; the layout exists so non-Sir don't see broken-looking pages.
+
+Six surfaces under `/admin`:
+
+| Route               | Surface                              | Server action(s)                                                       |
+| ------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| `/admin/trash`      | List / restore / forget / purge      | `getTrashList`, `restoreTrashEntryAction`, `deleteTrashEntryAction`, `purgeTrashAction` |
+| `/admin/export`     | JSON snapshot download               | `exportSnapshot`                                                       |
+| `/admin/inspector`  | Live presence + FCM token state     | `getInspectorSnapshot` (5s polling client-side)                         |
+| `/admin/push-test`  | Send custom FCM (bypasses presence)  | `sendTestPushAction` (form-bound via `useActionState`)                  |
+| `/admin/activity`   | Last 500 logged events               | `getActivityFeed`, `clearActivityFeed`                                  |
+| `/admin/sessions`   | Per-author force-logout              | `getSessionEpochs`, `forceLogoutAuthor`                                 |
+
+The landing page itself (`/admin`) hosts a single action button — `<SummonButton>` — which calls `summonKitten()`. This is the sole Sir → Besho push that mirrors the safeword delivery shape: `bypassPresence: true` + Android `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. The message is intentionally possessive and dominant; it is not configurable from the UI and lives directly in the action body. No cooldown — the two-step confirm is the only guard against an accidental tap.
+
+The floating-navbar More sheet appends an Admin entry only when `getCurrentAuthor()` resolves to T7SEN. The check fires once on mount; if the role check fails (non-Sir or unauth), the entry stays hidden.
+
+### Soft-delete is the destructive boundary
+
+Every `delete*` and `purgeAll*` server action across the app calls `moveToTrash` / `moveManyToTrash` from `@/lib/trash` BEFORE the deletion pipeline. Records land in `trash:{feature}:{id}` with a 7-day TTL. Restore re-hydrates the primary record JSON + index ZSET entry; auxiliary state (reactions, audit logs, occurrence indexes, streak keys, count keys, pin-set membership) is intentionally lost on restore — a hard-recovery scenario should use the JSON export instead. The list of per-feature losses is documented in `references/redis-schema.md` § "Trash (soft-delete window)".
+
+### Activity feed is a logger side-channel
+
+`logger.interaction` / `warn` / `error` / `fatal` automatically write the message + context to `activity:log` (Redis ZSET, capped at 500). Feature code does not call `recordActivity` directly. The Sir-only viewer at `/admin/activity` polls every 10 seconds.
+
 ---
 
 ## 2. Role-Based Permission Model
@@ -113,3 +153,5 @@ Every server action consumed by `useActionState` returns `{ success?: true; erro
 - `AGENTS.md` Section 6 — high-level reminder
 - `references/refusal-catalog.md` — security-related refusals (XSS, role-skip, etc.)
 - `references/code-style.md` Section 6 — server action patterns
+- `references/redis-schema.md` § "Sir-Only Admin Surfaces" — full key inventory for trash / activity / session epoch
+- `references/coding-patterns.md` — soft-delete pattern, force-logout pattern, admin sub-route pattern

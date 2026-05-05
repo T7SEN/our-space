@@ -1091,6 +1091,240 @@ Browser extensions (Grammarly, password managers, tab/session managers like the 
 
 ---
 
+## 28. Soft-Delete via Trash Helper
+
+Every `delete*` and `purgeAll*` server action moves records into the trash before the deletion pipeline. Sir restores within 7 days from `/admin/trash`; after the TTL expires, the entry self-evicts.
+
+### Wrong
+
+```ts
+// src/app/actions/notes.ts (pre-refactor)
+const pipeline = redis.pipeline()
+pipeline.del(noteKey(id))
+pipeline.zrem(INDEX_KEY, id)
+await pipeline.exec()
+```
+
+Hard-deletes with no recovery window.
+
+### Right (per-item)
+
+```ts
+import { moveToTrash } from "@/lib/trash"
+
+const note = await redis.get<Note>(noteKey(id))
+if (!note) return { error: "Note not found." }
+
+const score = await redis.zscore(INDEX_KEY, id)
+await moveToTrash(redis, {
+  feature: "notes",
+  id,
+  label: note.content.slice(0, 80),
+  deletedBy: author,
+  payload: note,
+  indexScore:
+    typeof score === "number" ? score : Number(score) || note.createdAt,
+  recordKey: noteKey(id),
+  indexKey: INDEX_KEY,
+})
+
+const pipeline = redis.pipeline()
+pipeline.del(noteKey(id))
+pipeline.zrem(INDEX_KEY, id)
+// ... aux deletes (reactions, count, pinned set) — these are not preserved on restore
+await pipeline.exec()
+```
+
+### Right (purge)
+
+```ts
+import { moveManyToTrash } from "@/lib/trash"
+
+const raw =
+  ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+    withScores: true,
+  })) as (string | number)[]) ?? []
+const pairs: { id: string; score: number }[] = []
+for (let i = 0; i < raw.length; i += 2) {
+  pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 })
+}
+const ids = pairs.map((p) => p.id)
+
+if (ids.length > 0) {
+  const records = (await redis.mget<Note[]>(...ids.map(noteKey))) ?? []
+  await moveManyToTrash(
+    redis,
+    pairs.map((p, i) => ({
+      feature: "notes" as const,
+      id: p.id,
+      label: records[i]?.content?.slice(0, 80) ?? p.id,
+      deletedBy: author,
+      payload: records[i] ?? null,
+      indexScore: p.score,
+      recordKey: noteKey(p.id),
+      indexKey: INDEX_KEY,
+    })),
+  )
+}
+
+// existing pipeline-delete continues unchanged
+```
+
+`moveManyToTrash` writes every entry in one pipeline. 100 records is one round-trip, not 100.
+
+### Auxiliary records (reviews)
+
+Features with composite layouts (one logical record → multiple Redis keys) use `extraRecords`:
+
+```ts
+await moveToTrash(redis, {
+  feature: "reviews",
+  id: weekDate,
+  recordKey: reviewKey(weekDate, "T7SEN"),
+  indexKey: REVEALED_INDEX,
+  extraRecords: [
+    { key: reviewKey(weekDate, "Besho"), value: beshoReview },
+  ],
+  // ...
+})
+```
+
+On restore, `extraRecords[].key` is `SET` alongside the primary `recordKey`.
+
+### What restore preserves
+
+- The primary record JSON (and `extraRecords`).
+- The index ZSET entry with the **original** score, so list ordering survives.
+
+### What restore does NOT preserve
+
+This is intentional — capturing every aux key would 10x the trash payload size and complicate the schema for marginal gain. Use the JSON export tool for full backups.
+
+| Feature      | Lost on restore                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| Notes        | reactions hash, pin-set membership, per-author count keys                                |
+| Permissions  | audit log; bulk purge wipes quotas / auto-rules / denied-hashes (not restorable per-item) |
+| Rituals      | occurrence index + per-date occurrence keys, current/longest streak                       |
+| Reviews      | only the single trash entry per week — both authors' records are inside `extraRecords`   |
+| Tasks / Rules / Ledger / Timeline | nothing additional — those features only have the index + record   |
+
+### Reviews use composite ids
+
+`TrashEntry.id` for reviews is `{weekDate}` (e.g. `2026-04-27`). The global `trash:index` member uses `{feature}::{id}` (double colon) to avoid collision with `:`-containing ids. The trash helper handles this transparently — callers always pass plain ids.
+
+### Score capture
+
+Most features have a timestamp field on the record (`createdAt`, `requestedAt`, `date`). `zscore` is the source of truth, but if it returns `null` (race or schema drift), fall back to the record's timestamp. Don't fall back to `Date.now()` — that re-orders the record on restore.
+
+---
+
+## 29. Force-Logout via Per-Author Session Epoch
+
+`decrypt()` consults Redis on every JWT verify. This is the single mechanism that lets Sir invalidate Besho's device remotely.
+
+### Pattern
+
+```ts
+// src/lib/auth-utils.ts
+export async function decrypt(session: string | undefined = "") {
+  const { payload } = await jwtVerify(session, encodedKey, { algorithms: ["HS256"] })
+  const data = payload as SessionPayload & { iat?: number }
+
+  const iatMs = typeof data.iat === "number" ? data.iat * 1000 : 0
+  const epoch = await readSessionEpoch(data.author) // 5s in-process cache
+  if (epoch > 0 && iatMs < epoch) return null
+
+  return data
+}
+
+export async function revokeAuthorSessions(author: Author) {
+  await redis.set(`session:epoch:${author}`, Date.now())
+}
+```
+
+### Why iat instead of a per-jti revocation list
+
+A per-jti list grows unboundedly and requires bumping every JWT through a deny-list. A per-author epoch invalidates all of that author's tokens at once with a single `SET`.
+
+### Why the in-process cache
+
+`decrypt()` is called from many places — every server action, presence pings, badge polls. A bare Redis read on every call multiplies load by an order of magnitude. The 5s TTL bounds the cutover delay; "instant logout" is not a real requirement for a 2-user app.
+
+### Cache invalidation on revoke
+
+`revokeAuthorSessions` updates the cache entry along with the Redis write so the issuing process sees the new epoch immediately. Other Node processes catch up after 5s.
+
+### Existing JWTs without bumped epoch
+
+Default behavior: epoch absent → `0` → no invalidation. The first revoke creates the marker; the second invalidates everything before it. Don't pre-emptively bump on deploy — that would force-logout everyone on every release.
+
+---
+
+## 30. Admin Sub-Route Convention
+
+`/admin` is a Sir-only sub-tree. The layout redirects, but the layout is **not** the boundary.
+
+### Pattern
+
+```tsx
+// src/app/admin/layout.tsx
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies()
+  const session = await decrypt(cookieStore.get("session")?.value)
+  if (!session?.author || session.author !== "T7SEN") {
+    redirect("/")
+  }
+  return <>{children}</>
+}
+```
+
+```ts
+// src/app/actions/admin.ts
+async function requireSir(): Promise<{ ok: true; session: SessionPayload } | { ok: false; error: string }> {
+  const session = await getSession()
+  if (!session?.author) return { ok: false, error: "Not authenticated." }
+  if (session.author !== "T7SEN") return { ok: false, error: "Forbidden." }
+  return { ok: true, session }
+}
+
+export async function someAdminAction() {
+  const guard = await requireSir()
+  if (!guard.ok) return { error: guard.error }
+  // ... real work
+}
+```
+
+### Why both
+
+The layout exists so non-Sir don't see broken-looking pages on direct-link load. The action guard is the actual security boundary — server actions are public endpoints, the client is adversarial. Skip the action guard and you've shipped a privilege-escalation bug.
+
+### Admin entry in floating navbar
+
+The More-sheet item is conditionally appended to `MORE_ITEMS` after `getCurrentAuthor()` resolves. The render flicker (one tick where it's hidden) is acceptable because non-Sir would never see it anyway and the route guard catches direct navigation.
+
+```tsx
+const [isT7SEN, setIsT7SEN] = useState(false)
+useEffect(() => {
+  let cancelled = false
+  void (async () => {
+    try {
+      const author = await getCurrentAuthor()
+      if (!cancelled) setIsT7SEN(author === "T7SEN")
+    } catch {
+      // unauth or transient — leave hidden
+    }
+  })()
+  return () => { cancelled = true }
+}, [])
+
+const moreItems = useMemo(
+  () => (isT7SEN ? [...MORE_ITEMS, ADMIN_ITEM] : MORE_ITEMS),
+  [isT7SEN],
+)
+```
+
+---
+
 ## Cross-References
 
 - `src/lib/native.ts` — `isNative()` and `globalThis` cast example
@@ -1109,6 +1343,11 @@ Browser extensions (Grammarly, password managers, tab/session managers like the 
 - `src/components/dashboard/counter-card.tsx` — own internal 1Hz tick + anniversary countdown (closer of next 30-day vs yearly milestone), unit-toggle drives both the main and anniversary numbers
 - `src/components/dashboard/timezone-card.tsx` — own internal 60s tick
 - `src/components/admin/purge-button.tsx` — Sir-only two-step destructive confirm. Caller gates render
+- `src/lib/trash.ts` — soft-delete helper (`moveToTrash`, `moveManyToTrash`, `restoreFromTrash`, `listTrash`, `purgeTrash`)
+- `src/lib/activity.ts` — `recordActivity` (logger side-effect), `getActivity`, `clearActivity`
+- `src/lib/auth-utils.ts` — `decrypt` epoch check, `revokeAuthorSessions`, `readAllSessionEpochs`
+- `src/app/admin/layout.tsx` — Sir-only redirect guard
+- `src/app/actions/admin.ts` — `requireSir`, inspector, push test, sessions, export, trash list/restore/purge, activity feed
 - `src/hooks/use-network.ts` — Capacitor-aware network status
 - `src/hooks/use-pull-to-refresh.ts` — bails when touch starts inside `[role="dialog"]`
 - `src/app/template.tsx` — per-route enter animation, `ROUTE_ORDER` for directional slide

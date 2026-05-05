@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 
 export type RuleStatus = "pending" | "active" | "completed";
 
@@ -207,6 +208,22 @@ export async function deleteRule(
     return { error: "Only Sir can delete rules." };
 
   try {
+    const existing = await redis.get<Rule>(ruleKey(id));
+    if (existing) {
+      const score = await redis.zscore(INDEX_KEY, id);
+      await moveToTrash(redis, {
+        feature: "rules",
+        id,
+        label: existing.title,
+        deletedBy: session.author,
+        payload: existing,
+        indexScore:
+          typeof score === "number" ? score : Number(score) || existing.createdAt,
+        recordKey: ruleKey(id),
+        indexKey: INDEX_KEY,
+      });
+    }
+
     const pipeline = redis.pipeline();
     pipeline.del(ruleKey(id));
     pipeline.zrem(INDEX_KEY, id);
@@ -233,7 +250,36 @@ export async function purgeAllRules(): Promise<{
   if (session.author !== "T7SEN") return { error: "Only Sir can purge rules." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<Rule[]>(...ids.map(ruleKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const rule = records[i];
+          return {
+            feature: "rules" as const,
+            id: p.id,
+            label: rule?.title ?? p.id,
+            deletedBy: session.author,
+            payload: rule ?? null,
+            indexScore: p.score,
+            recordKey: ruleKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) pipeline.del(ruleKey(id));

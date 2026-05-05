@@ -16,6 +16,7 @@ const ROUTE_ORDER: Record<string, number> = {
   "/ledger": 7,
   "/review": 8,
   "/protocol": 9,
+  "/admin": 10,
 };
 
 function getRouteIndex(pathname: string): number {

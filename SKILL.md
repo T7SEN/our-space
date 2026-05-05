@@ -50,6 +50,10 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - Mobile-friendly form inputs: `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` — set them deliberately. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode.
 - `<body>` carries `suppressHydrationWarning` to absorb browser-extension-injected attributes; don't remove.
 - Per-page purge + per-item delete are Sir-only on both client (`currentAuthor === "T7SEN"` gate) and server (role check in the action). Use `<PurgeButton>` from `@/components/admin/purge-button` for purge UI; mirror the two-step / heavy-haptic pattern for new per-item destructive controls.
+- Soft-delete is the boundary, not `del`. Every `delete*` / `purgeAll*` action calls `moveToTrash` / `moveManyToTrash` from `@/lib/trash` BEFORE the deletion pipeline. 7-day TTL, restorable from `/admin/trash`. Auxiliary state (reactions, audits, occurrences, streak/count keys, pin-set membership) is intentionally not preserved — only the primary record + index ZSET entry come back.
+- Activity feed is logger-driven. `logger.interaction` / `warn` / `error` / `fatal` automatically write to the `activity:log` ZSET (capped at 500). Don't call `recordActivity` directly; let the logger do it. Sir reads at `/admin/activity`.
+- Force-logout = bump `session:epoch:{author}`. `decrypt()` checks JWT `iat` against the epoch (5s in-process cache). All admin destructive actions go through the inspector / push-test / sessions / export / trash / activity surfaces under `/admin`, gated by `src/app/admin/layout.tsx` redirect + `requireSir()` in `src/app/actions/admin.ts`.
+- `summonKitten()` is the only Sir → Besho push that mirrors safeword's bypass: `bypassPresence: true` + `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. Possessive/dominant copy is fixed in-action. Surfaced as `<SummonButton>` on the `/admin` landing.
 
 ---
 

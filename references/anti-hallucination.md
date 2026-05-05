@@ -43,6 +43,11 @@ These are not removed — they exist and are wired up. Listed because their exis
 - **`@capacitor/geolocation`** is in use, not dormant. `DistanceCard` consumes it for live distance to `PARTNER_COORDS`. The `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` perms in `AndroidManifest.xml` are real, not stale.
 - **`@capacitor/device`** is in use for Sentry device context inside `SentryUserProvider`. Don't propose adding device-info plugins; one already runs.
 - **`@capacitor/screen-orientation`** IS still installed but currently unused — flagging here so an agent doesn't mistake it for a future-use plugin already wired up. Either propose a real use or removal.
+- **`/admin`** is a real Sir-only sub-tree (not a stub). Routes: `/admin`, `/admin/trash`, `/admin/export`, `/admin/inspector`, `/admin/push-test`, `/admin/activity`, `/admin/sessions`. Layout guard at `src/app/admin/layout.tsx` redirects non-Sir; every action in `src/app/actions/admin.ts` repeats the role check via `requireSir()`.
+- **`moveToTrash` / `moveManyToTrash`** are real and wired into every `delete*` / `purgeAll*` action. Don't propose "adding a trash window" as future work — it exists. Don't bypass via a raw `del` either.
+- **`session:epoch:{author}`** is the live force-logout mechanism. `decrypt()` reads it on every JWT verify (5s in-process cache). Don't reinvent revocation via deny-lists or jti-tracking.
+- **`activity:log`** is the Sir-only feed. Driven automatically from `logger.interaction` / `warn` / `error` / `fatal` via `recordActivity` in `src/lib/activity.ts`. Don't call `recordActivity` directly from feature code.
+- **`summonKitten()`** is real and lives in `src/app/actions/admin.ts`. It is the only Sir → Besho push that bypasses presence and uses the safeword channel. Surfaced via `<SummonButton>` on the `/admin` landing. Don't propose adding a cooldown, history list, or configurable copy without explicit instruction — those were all considered and rejected.
 
 ---
 

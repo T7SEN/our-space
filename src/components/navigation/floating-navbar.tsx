@@ -1,7 +1,7 @@
 // src/components/navigation/floating-navbar.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
@@ -14,6 +14,7 @@ import {
   CheckSquare,
   Hand,
   ScrollText,
+  Shield,
   Sparkles,
   Award,
   MessageSquareQuote,
@@ -22,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { vibrate } from "@/lib/haptic";
 import { useNavBadges } from "@/hooks/use-nav-badges";
+import { getCurrentAuthor } from "@/app/actions/auth";
 import {
   Sheet,
   SheetDescription,
@@ -74,15 +76,38 @@ const MORE_ITEMS: NavItem[] = [
   { name: "Protocol", href: "/protocol", icon: BookOpen },
 ];
 
+const ADMIN_ITEM: NavItem = { name: "Admin", href: "/admin", icon: Shield };
+
 export function FloatingNavbar() {
   const pathname = usePathname();
   const badges = useNavBadges();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [isT7SEN, setIsT7SEN] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const author = await getCurrentAuthor();
+        if (!cancelled) setIsT7SEN(author === "T7SEN");
+      } catch {
+        // unauth or transient — leave hidden
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const moreItems = useMemo(
+    () => (isT7SEN ? [...MORE_ITEMS, ADMIN_ITEM] : MORE_ITEMS),
+    [isT7SEN],
+  );
 
   const activeMoreItem =
-    MORE_ITEMS.find((item) => item.href === pathname) ?? null;
+    moreItems.find((item) => item.href === pathname) ?? null;
   const moreActive = activeMoreItem !== null;
-  const moreBadgeCount = MORE_ITEMS.reduce(
+  const moreBadgeCount = moreItems.reduce(
     (sum, item) => sum + (item.badgeKey ? badges[item.badgeKey] : 0),
     0,
   );
@@ -292,7 +317,7 @@ export function FloatingNavbar() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 px-6 pb-4 sm:grid-cols-3">
-                    {MORE_ITEMS.map((item) => {
+                    {moreItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = pathname === item.href;
                       const badgeCount = item.badgeKey

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { moveToTrash, moveManyToTrash } from "@/lib/trash";
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "pending" | "in_review" | "completed";
@@ -251,6 +252,22 @@ export async function deleteTask(
     return { error: "Only Sir can delete tasks." };
 
   try {
+    const existing = await redis.get<Task>(taskKey(id));
+    if (existing) {
+      const score = await redis.zscore(INDEX_KEY, id);
+      await moveToTrash(redis, {
+        feature: "tasks",
+        id,
+        label: existing.title,
+        deletedBy: session.author,
+        payload: existing,
+        indexScore:
+          typeof score === "number" ? score : Number(score) || existing.createdAt,
+        recordKey: taskKey(id),
+        indexKey: INDEX_KEY,
+      });
+    }
+
     const pipeline = redis.pipeline();
     pipeline.del(taskKey(id));
     pipeline.zrem(INDEX_KEY, id);
@@ -280,7 +297,36 @@ export async function purgeAllTasks(): Promise<{
   if (session.author !== "T7SEN") return { error: "Only Sir can purge tasks." };
 
   try {
-    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+    const raw =
+      ((await redis.zrange<(string | number)[]>(INDEX_KEY, 0, -1, {
+        withScores: true,
+      })) as (string | number)[]) ?? [];
+    const pairs: { id: string; score: number }[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      pairs.push({ id: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+    }
+    const ids = pairs.map((p) => p.id);
+
+    if (ids.length > 0) {
+      const records =
+        (await redis.mget<Task[]>(...ids.map(taskKey))) ?? [];
+      await moveManyToTrash(
+        redis,
+        pairs.map((p, i) => {
+          const task = records[i];
+          return {
+            feature: "tasks" as const,
+            id: p.id,
+            label: task?.title ?? p.id,
+            deletedBy: session.author,
+            payload: task ?? null,
+            indexScore: p.score,
+            recordKey: taskKey(p.id),
+            indexKey: INDEX_KEY,
+          };
+        }),
+      );
+    }
 
     const pipeline = redis.pipeline();
     for (const id of ids) pipeline.del(taskKey(id));

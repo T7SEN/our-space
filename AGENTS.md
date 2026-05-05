@@ -108,6 +108,11 @@ These compile and lint clean but break at runtime, in SSR, or in React 19 strict
 - **Mobile-friendly form inputs.** Set `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` deliberately per field. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode. Don't blanket-disable autocorrect on prose textareas — that hurts notes/rules writing.
 - **`<body>` carries `suppressHydrationWarning`.** Browser extensions (Grammarly, tab managers, etc.) inject attributes on `<body>` between SSR delivery and React hydration. The suppression is one-level only — children still hydrate strictly. Don't remove it unless every two-user device confirms no extension is touching `<body>`.
 - **Sir-only destructive admin tooling.** Per-page purge buttons and the new per-item delete UIs (notes / permissions / review weeks) are gated client-side on `currentAuthor === "T7SEN"` AND server-side via the canonical role check. The reusable `<PurgeButton>` (`src/components/admin/purge-button.tsx`) handles two-step confirmation + 5s auto-cancel + heavy-haptic commit. Existing per-item delete mechanisms on tasks/rules/ledger/timeline/rituals are untouched; new wiring only added where missing.
+- **Soft-delete is the boundary, not `del`.** Every `delete*` and `purgeAll*` server action calls `moveToTrash` / `moveManyToTrash` from `@/lib/trash` BEFORE the deletion pipeline. Records land in `trash:{feature}:{id}` with a 7-day TTL plus per-feature + global ZSET indexes. Restore re-hydrates the original record key + index ZSET entry with the captured score. Auxiliary state (reactions, audits, occurrences, streaks, pin-set membership, count keys) is intentionally **not** preserved — `references/coding-patterns.md` § "Soft-Delete via Trash Helper" lists what each feature loses on restore.
+- **Activity feed is a logger side-effect.** `logger.interaction` / `warn` / `error` / `fatal` fire `recordActivity()` from `@/lib/activity` after the existing dev-console / Sentry path. Cap is 500 entries trimmed via `zremrangebyrank`. Never call `recordActivity` directly from feature code — let the logger drive it. Sir reads via `getActivityFeed()` on `/admin/activity`.
+- **Force-logout via per-author session epoch.** `revokeAuthorSessions(author)` writes `Date.now()` to `session:epoch:{author}`. `decrypt()` reads the epoch (5s in-process cache) and rejects any JWT whose `iat` predates it. Existing JWTs without bumped epoch remain valid until first revoke. `/admin/sessions` is the UI; the action is `forceLogoutAuthor()`.
+- **`/admin` is a Sir-only sub-tree.** `src/app/admin/layout.tsx` redirects non-Sir to `/`. The floating-navbar More sheet appends an Admin entry only when `getCurrentAuthor()` resolves to T7SEN. Every admin server action duplicates the role check via `requireSir()` in `src/app/actions/admin.ts` — the layout is convenience, not the boundary.
+- **Summon mirrors safeword in reverse.** `summonKitten()` in `src/app/actions/admin.ts` is the only server action that fires Sir → Besho with the same delivery shape as safeword: `bypassPresence: true` + Android `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. Possessive/dominant copy lives in the action body, not in constants — it's a single fixed message. Surfaced via `<SummonButton>` on the `/admin` landing using the two-step heavy-haptic shape. No cooldown — Sir initiates.
 
 ---
 
@@ -172,7 +177,9 @@ src/
 │   ├── protocol/               # Shared protocol + version history; supports ?focus= deep links
 │   ├── rituals/                # Recurring obligations + LocalNotifications reminders
 │   ├── review/                 # Weekly retrospective — independent reflections, atomic reveal
+│   ├── admin/                  # Sir-only sub-tree (layout redirects non-Sir): trash, export, inspector, push-test, activity, sessions
 │   ├── actions/                # Server actions ('use server')
+│   │   └── admin.ts            # Inspector, test push, activity feed reader, session epochs + force-logout, JSON export, trash list/restore/purge
 │   └── api/
 │       ├── presence/route.ts
 │       ├── notes/stream/       # Edge SSE
@@ -190,10 +197,11 @@ src/
 │   ├── navigation/             # top-navbar (Heart icon mobile, wordmark md:+), floating-navbar (5 primary tabs + More sheet)
 │   ├── dashboard/              # Cards: Mood, Counter (with anniversary countdown), Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
 │   ├── review/                 # Form, reveal card, summary panel, history drawer (Sir-only per-week delete)
-│   ├── admin/                  # PurgeButton — Sir-only destructive controls (caller gates render on isT7SEN)
+│   ├── admin/                  # PurgeButton + SummonButton — Sir-only controls (caller gates render on isT7SEN)
+│   │                           # /admin pages live under src/app/admin/, not here
 │   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary, Sheet
 ├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges, use-pull-to-refresh
-├── lib/                        # auth-utils, cairo-time, native, haptic, keyboard, clipboard, logger, constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
+├── lib/                        # auth-utils (+ session-epoch revoke), cairo-time, native, haptic, keyboard, clipboard, logger, activity (Sir-only feed), trash (soft-delete helper), constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
 └── instrumentation.ts          # Sentry
 ```
 
@@ -239,6 +247,7 @@ Load on demand. Do not load preemptively.
 | Runtime-critical coding patterns with examples           | `references/coding-patterns.md`    |
 | Code style, naming, React, TypeScript, UI, state         | `references/code-style.md`         |
 | Auth, error handling, security, accessibility            | `references/auth-and-security.md`  |
+| Sir-only `/admin` tools, soft-delete, force-logout       | `references/auth-and-security.md` § "Sir-Only Admin Tier" |
 | `/permissions` feature — schema, validation, auto-rules  | `references/permissions.md`        |
 | `/review` feature — schema, state machine, reveal race   | `references/review.md`             |
 | Anti-hallucination inventory (also in `SKILL.md`)        | `references/anti-hallucination.md` |

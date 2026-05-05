@@ -59,7 +59,7 @@ export default function LoginPage() {
         transition={{ duration: 0.8, type: "spring", bounce: 0 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="flex flex-col items-center justify-center space-y-8 rounded-3xl border border-white/5 bg-card/40 p-10 backdrop-blur-xl shadow-2xl shadow-black/40">
+        <div className="flex flex-col items-center justify-center space-y-8 rounded-3xl border border-white/5 bg-card/40 p-10 backdrop-blur-md shadow-xl shadow-black/30">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Lock className="h-8 w-8" />
           </div>

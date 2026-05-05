@@ -171,8 +171,8 @@ export function NotificationDrawer() {
                   onClick={(e) => e.stopPropagation()}
                   className={cn(
                     "fixed z-50 w-96 overflow-hidden",
-                    "rounded-2xl border border-white/10 bg-card/95 shadow-2xl shadow-black/40",
-                    "backdrop-blur-xl",
+                    "rounded-2xl border border-white/10 bg-card/95 shadow-xl shadow-black/30",
+                    "backdrop-blur-md",
                   )}
                   style={{
                     top: drawerPos.top + 10,

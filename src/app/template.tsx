@@ -58,24 +58,19 @@ export default function Template({ children }: TemplateProps) {
   return (
     <motion.div
       key={pathname}
+      className="will-change-transform"
       initial={{
         opacity: 0,
         x: xOffset,
-        filter: "blur(4px)",
-        scale: 0.99,
       }}
       animate={{
         opacity: 1,
         x: 0,
-        filter: "blur(0px)",
-        scale: 1,
       }}
       transition={{
-        duration: 0.38,
+        duration: 0.28,
         ease: [0.22, 1, 0.36, 1], // custom cubic-bezier — fast out
-        opacity: { duration: 0.25 },
-        filter: { duration: 0.3 },
-        scale: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+        opacity: { duration: 0.22 },
       }}
     >
       {children}

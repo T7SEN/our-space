@@ -87,7 +87,7 @@ export function SafeWordCard({ currentAuthor }: SafeWordCardProps) {
         className={cn(
           "flex flex-col justify-between overflow-hidden rounded-3xl",
           "border border-white/5 bg-card/40 p-8",
-          "backdrop-blur-xl shadow-xl shadow-black/20",
+          "backdrop-blur-md shadow-xl shadow-black/20",
         )}
       >
         <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ export function SafeWordCard({ currentAuthor }: SafeWordCardProps) {
     <div
       className={cn(
         "flex flex-col overflow-hidden rounded-3xl border p-8",
-        "backdrop-blur-xl shadow-xl transition-colors",
+        "backdrop-blur-md shadow-xl transition-colors",
         isTriggered
           ? "border-destructive/40 bg-destructive/5 shadow-destructive/10"
           : "border-white/5 bg-card/40 shadow-black/20 hover:border-destructive/20",

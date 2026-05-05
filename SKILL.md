@@ -45,6 +45,8 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - `<TabsContent>` that holds form-bearing children must `forceMount` — Radix unmounts inactive tabs and `FormData` ignores DOM-absent inputs.
 - Cards needing 1Hz/60s ticks own their own `setInterval` — never tick the dashboard parent.
 - Custom interactive surfaces (raw `<button>`, `<Link>`) get `active:scale-[0.95]`. The shadcn `<Button>` already has its own press feedback.
+- Never animate `filter: blur()` and never use `mode="popLayout"` in hot paths. Android WebView doesn't composite `filter` — every frame is a full repaint. Stick to `opacity` + `transform`. Lone exception: `src/app/login/page.tsx` (once-per-session).
+- Glass cards = `backdrop-blur-md` + `shadow-xl shadow-black/30`. Not `-xl` / `-2xl`. Heavier glass tanks framerate on Samsung/Honor mid-range. Use `will-change-transform` only on elements that transform every navigation or every second (page-transition wrapper, navbar pill, CounterCard spans). Overuse explodes GPU layer count.
 - Icon-only buttons need ≥24dp effective hit area. Use `p-1.5` minimum for inline icons; `p-2` for primary actions like panel close. Never `opacity-0 group-hover:opacity-100` for actions a mobile user needs to reach — there is no hover.
 - Form submit success effects call `void hideKeyboard()` from `@/lib/keyboard` so the soft keyboard dismisses with the form.
 - Mobile-friendly form inputs: `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` — set them deliberately. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode.

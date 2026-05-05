@@ -151,7 +151,7 @@ export function MoodCard({ currentAuthor }: MoodCardProps) {
     <div
       className={cn(
         "relative flex flex-col overflow-hidden rounded-3xl border border-white/5",
-        "bg-card/40 p-8 backdrop-blur-xl shadow-xl shadow-black/20 transition-colors",
+        "bg-card/40 p-8 backdrop-blur-md shadow-xl shadow-black/20 transition-colors",
         cardState === "both-submitted" || cardState === "hug-sent"
           ? "border-primary/20"
           : "hover:border-primary/20",

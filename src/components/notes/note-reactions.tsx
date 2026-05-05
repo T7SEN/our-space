@@ -130,7 +130,7 @@ export function NoteReactions({
   return (
     <div className="relative flex flex-wrap items-center gap-1.5">
       {/* Existing reaction pills */}
-      <AnimatePresence mode="popLayout">
+      <AnimatePresence>
         {grouped.map(({ emoji, label, count, authors }) => {
           const isMyReaction = currentAuthor
             ? authors.includes(currentAuthor)
@@ -224,8 +224,8 @@ export function NoteReactions({
               transition={{ type: "spring", bounce: 0.3, duration: 0.25 }}
               className={cn(
                 "absolute bottom-9 left-0 z-50 w-72 rounded-2xl border",
-                "border-white/10 bg-card/95 p-3 shadow-2xl shadow-black/40",
-                "backdrop-blur-xl",
+                "border-white/10 bg-card/95 p-3 shadow-xl shadow-black/30",
+                "backdrop-blur-md",
               )}
             >
               <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">

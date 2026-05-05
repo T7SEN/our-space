@@ -670,7 +670,7 @@ export default function NotesPage() {
           ref={formRef}
           action={action}
           onSubmit={handleFormSubmit}
-          className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-2 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all focus-within:border-primary/30 focus-within:bg-card/60"
+          className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-2 backdrop-blur-md shadow-xl shadow-black/30 transition-all focus-within:border-primary/30 focus-within:bg-card/60"
         >
           <div ref={containerRef}>
             <RichTextEditor

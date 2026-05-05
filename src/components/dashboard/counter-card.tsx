@@ -243,7 +243,7 @@ export function CounterCard() {
       className={cn(
         "relative flex w-full flex-col justify-between overflow-hidden",
         "rounded-[2.5rem] border border-white/5 bg-card/40 p-10",
-        "backdrop-blur-xl shadow-2xl shadow-black/40 transition-colors",
+        "backdrop-blur-md shadow-xl shadow-black/30 transition-colors",
         "hover:border-primary/20",
       )}
     >
@@ -266,15 +266,15 @@ export function CounterCard() {
 
         <div className="flex flex-col gap-3 md:h-32 md:flex-row md:items-end md:justify-between md:gap-4">
           <div className="flex min-w-0 items-baseline gap-4">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               <motion.span
                 key={activeUnit}
-                initial={{ y: 20, opacity: 0, filter: "blur(4px)" }}
-                animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                exit={{ y: -20, opacity: 0, filter: "blur(4px)" }}
-                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                initial={{ y: 16, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -16, opacity: 0 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.32 }}
                 className={cn(
-                  "inline-block text-7xl font-black tracking-tighter md:text-8xl",
+                  "inline-block text-7xl font-black tracking-tighter will-change-transform md:text-8xl",
                   (activeUnit === "secs" || activeUnit === "mins") &&
                     "text-5xl md:text-7xl",
                 )}
@@ -282,13 +282,13 @@ export function CounterCard() {
                 {formattedHeroValue}
               </motion.span>
             </AnimatePresence>
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               <motion.span
                 key={`${activeUnit}-label`}
-                initial={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.32 }}
                 className="inline-block text-xl font-medium text-muted-foreground md:text-2xl"
               >
                 {activeLabelMap[activeUnit]}
@@ -316,14 +316,14 @@ export function CounterCard() {
                 </span>
               ) : (
                 <div className="flex items-baseline gap-1.5">
-                  <AnimatePresence mode="popLayout">
+                  <AnimatePresence mode="wait">
                     <motion.span
                       key={`${activeUnit}-anniv`}
-                      initial={{ y: 12, opacity: 0, filter: "blur(2px)" }}
-                      animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
-                      exit={{ y: -12, opacity: 0, filter: "blur(2px)" }}
-                      transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-                      className="text-3xl font-bold tracking-tight text-primary md:text-4xl"
+                      initial={{ y: 10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -10, opacity: 0 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.32 }}
+                      className="text-3xl font-bold tracking-tight text-primary will-change-transform md:text-4xl"
                     >
                       {formattedRemainingValue}
                     </motion.span>

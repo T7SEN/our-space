@@ -118,7 +118,7 @@ export function HistoryDrawer() {
       transition={{ duration: 0.3, delay: 0.1 }}
       className={cn(
         "rounded-3xl border border-white/5 bg-card/40 p-5",
-        "backdrop-blur-xl shadow-xl shadow-black/20",
+        "backdrop-blur-md shadow-xl shadow-black/20",
       )}
     >
       <button

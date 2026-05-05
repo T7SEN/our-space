@@ -35,7 +35,7 @@ export function WeatherCard() {
         className={cn(
           "flex flex-col items-center justify-center gap-4",
           "rounded-3xl border border-destructive/20 bg-card/40 p-8",
-          "backdrop-blur-xl shadow-xl shadow-black/20",
+          "backdrop-blur-md shadow-xl shadow-black/20",
         )}
       >
         <WifiOff className="h-8 w-8 text-destructive/40" />
@@ -56,7 +56,7 @@ export function WeatherCard() {
       className={cn(
         "relative flex h-full flex-col justify-between overflow-hidden",
         "rounded-3xl border border-white/5 bg-card/40 p-8",
-        "backdrop-blur-xl shadow-xl shadow-black/20 transition-colors",
+        "backdrop-blur-md shadow-xl shadow-black/20 transition-colors",
         "hover:border-primary/20",
       )}
     >
@@ -156,7 +156,7 @@ export function WeatherCard() {
 
 function WeatherSkeleton() {
   return (
-    <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-8 backdrop-blur-xl shadow-xl shadow-black/20">
+    <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-8 backdrop-blur-md shadow-xl shadow-black/20">
       <div className="flex items-center justify-between">
         <div className="h-4 w-32 animate-pulse rounded-md bg-muted/50" />
         <div className="h-8 w-8 animate-pulse rounded-full bg-muted/50" />

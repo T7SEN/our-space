@@ -278,7 +278,7 @@ function ClosedCard({ bundle }: { bundle: ReviewBundle }) {
       transition={{ duration: 0.25 }}
       className={cn(
         "rounded-3xl border border-white/5 bg-card/40 p-6 sm:p-8",
-        "backdrop-blur-xl shadow-xl shadow-black/20",
+        "backdrop-blur-md shadow-xl shadow-black/20",
       )}
     >
       <div className="flex items-start gap-4">
@@ -310,7 +310,7 @@ function ReviewSkeleton() {
       <div
         className={cn(
           "flex flex-col gap-4 rounded-3xl border border-white/5",
-          "bg-card/40 p-6 backdrop-blur-xl shadow-xl shadow-black/20 sm:p-8",
+          "bg-card/40 p-6 backdrop-blur-md shadow-xl shadow-black/20 sm:p-8",
         )}
       >
         <div className="h-3 w-24 animate-pulse rounded bg-muted/30" />
@@ -329,7 +329,7 @@ function ReviewSkeleton() {
       <div
         className={cn(
           "flex flex-col gap-3 rounded-3xl border border-white/5",
-          "bg-card/40 p-5 backdrop-blur-xl shadow-xl shadow-black/20",
+          "bg-card/40 p-5 backdrop-blur-md shadow-xl shadow-black/20",
         )}
       >
         <div className="h-3 w-32 animate-pulse rounded bg-muted/30" />
@@ -354,7 +354,7 @@ function RevealCardFallback() {
     <section
       className={cn(
         "rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 sm:p-8",
-        "backdrop-blur-xl shadow-xl shadow-black/20",
+        "backdrop-blur-md shadow-xl shadow-black/20",
       )}
     >
       <div className="flex items-start gap-4">

@@ -400,7 +400,7 @@ function TOCBar({ headings }: { headings: string[] }) {
       animate={{ opacity: 1, y: 0 }}
       className="sticky top-2 z-20 -mx-2"
     >
-      <div className="overflow-x-auto rounded-full border border-white/5 bg-card/60 px-2 py-1.5 backdrop-blur-xl shadow-lg shadow-black/30">
+      <div className="overflow-x-auto rounded-full border border-white/5 bg-card/60 px-2 py-1.5 backdrop-blur-md shadow-lg shadow-black/30">
         <div className="flex gap-1 whitespace-nowrap">
           {headings.map((h) => (
             <button
@@ -443,7 +443,7 @@ function UnreadDiffPill({ onClick }: { onClick: () => void }) {
 
 function ProtocolSkeleton() {
   return (
-    <div className="rounded-3xl border border-white/5 bg-card/20 p-6 backdrop-blur-xl">
+    <div className="rounded-3xl border border-white/5 bg-card/20 p-6 backdrop-blur-md">
       <div className="space-y-3">
         <div className="h-5 w-2/5 animate-pulse rounded bg-muted/30" />
         <div className="h-3 w-full animate-pulse rounded bg-muted/20" />
@@ -489,7 +489,7 @@ function ReadView({ protocol, now }: { protocol: Protocol; now: number }) {
       transition={{ duration: 0.25 }}
       className="space-y-4"
     >
-      <div className="rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-xl shadow-2xl shadow-black/40">
+      <div className="rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-md shadow-xl shadow-black/30">
         <MarkdownRenderer
           content={protocol.content}
           className={cn(
@@ -535,7 +535,7 @@ function DiffView({
       transition={{ duration: 0.25 }}
       className="space-y-4"
     >
-      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-card/40 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 backdrop-blur-xl">
+      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-card/40 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 backdrop-blur-md">
         <span>
           {formatRelative(oldVersion.updatedAt, now)} →{" "}
           {formatRelative(newVersion.updatedAt, now)}
@@ -546,7 +546,7 @@ function DiffView({
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 backdrop-blur-xl shadow-2xl shadow-black/40">
+      <div className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 backdrop-blur-md shadow-xl shadow-black/30">
         <div className="font-mono text-[12px] leading-relaxed">
           {diff.map((line, i) => (
             <DiffLineRow key={i} line={line} />
@@ -640,7 +640,7 @@ function HistoryView({
           return (
             <div
               key={`${entry.updatedAt}-${index}`}
-              className="rounded-2xl border border-white/5 bg-card/30 backdrop-blur-xl"
+              className="rounded-2xl border border-white/5 bg-card/30 backdrop-blur-md"
             >
               <button
                 onClick={() => {
@@ -746,7 +746,7 @@ function EditForm({
     >
       <form
         action={dispatch}
-        className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-xl shadow-2xl shadow-black/40"
+        className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-md shadow-xl shadow-black/30"
       >
         <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
           Edit Protocol

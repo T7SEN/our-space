@@ -84,7 +84,7 @@ export function TodayStrip() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "rounded-3xl border border-white/5 bg-card/30 p-3 backdrop-blur-xl",
+        "rounded-3xl border border-white/5 bg-card/30 p-3 backdrop-blur-md",
         "shadow-xl shadow-black/20",
       )}
     >

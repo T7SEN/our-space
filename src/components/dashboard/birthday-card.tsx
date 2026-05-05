@@ -279,7 +279,7 @@ export function BirthdayCard() {
       className={cn(
         "relative flex h-full flex-col justify-between overflow-hidden",
         "rounded-3xl border border-white/5 bg-card/40 p-8",
-        "backdrop-blur-xl shadow-xl shadow-black/20 transition-colors",
+        "backdrop-blur-md shadow-xl shadow-black/20 transition-colors",
         "hover:border-primary/20",
       )}
     >

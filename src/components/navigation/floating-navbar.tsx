@@ -116,7 +116,7 @@ export function FloatingNavbar() {
   return (
     <>
       <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
-        <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-xl shadow-2xl shadow-black/50">
+        <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-black/60 px-3 py-2 backdrop-blur-md shadow-xl shadow-black/40">
           {PRIMARY_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -140,7 +140,7 @@ export function FloatingNavbar() {
                 {isActive && (
                   <motion.div
                     layoutId="navbar-active-indicator"
-                    className="absolute inset-0 rounded-full bg-primary/15"
+                    className="absolute inset-0 rounded-full bg-primary/15 will-change-transform"
                     transition={{
                       type: "spring",
                       bounce: 0.2,
@@ -268,8 +268,8 @@ export function FloatingNavbar() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed inset-0 z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-xs"
+                  transition={{ duration: 0.18 }}
+                  className="fixed inset-0 z-50 bg-black/60"
                 />
               </SheetPrimitive.Overlay>
 
@@ -280,8 +280,8 @@ export function FloatingNavbar() {
                   exit={{ y: "100%" }}
                   transition={{
                     type: "spring",
-                    damping: 30,
-                    stiffness: 300,
+                    damping: 32,
+                    stiffness: 360,
                   }}
                   drag="y"
                   dragConstraints={{ top: 0, bottom: 0 }}
@@ -298,8 +298,8 @@ export function FloatingNavbar() {
                   }}
                   className={cn(
                     "fixed inset-x-0 bottom-0 z-50 flex flex-col gap-4",
-                    "rounded-t-3xl border-t border-white/10 bg-black/80",
-                    "backdrop-blur-xl shadow-2xl shadow-black/60",
+                    "rounded-t-3xl border-t border-white/10 bg-neutral-950",
+                    "shadow-xl shadow-black/50 will-change-transform",
                     "pb-[max(env(safe-area-inset-bottom),1rem)]",
                     "touch-none",
                   )}

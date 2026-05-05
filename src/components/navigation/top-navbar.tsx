@@ -25,7 +25,7 @@ export function TopNavbar() {
 
   return (
     <div
-      className="sticky top-0 z-50 w-full border-b border-white/4 bg-background/80 backdrop-blur-xl"
+      className="sticky top-0 z-50 w-full border-b border-white/4 bg-background/80 backdrop-blur-md"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="mx-auto flex h-13 max-w-6xl items-center justify-between px-6 md:px-12">

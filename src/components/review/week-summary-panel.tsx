@@ -110,7 +110,7 @@ export function WeekSummaryPanel({
       transition={{ duration: 0.3, delay: 0.05 }}
       className={cn(
         "rounded-3xl border border-white/5 bg-card/40 p-5 sm:p-7",
-        "backdrop-blur-xl shadow-xl shadow-black/20",
+        "backdrop-blur-md shadow-xl shadow-black/20",
       )}
     >
       <header className="mb-5">

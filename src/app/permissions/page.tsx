@@ -406,7 +406,7 @@ export default function PermissionsPage() {
           <div
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-full",
-              "border border-white/10 bg-card/80 backdrop-blur-xl shadow-lg",
+              "border border-white/10 bg-card/80 backdrop-blur-md shadow-lg",
               pullDistance >= PULL_TO_REFRESH_THRESHOLD
                 ? "text-primary"
                 : "text-muted-foreground/60",
@@ -982,7 +982,7 @@ function RequestItem({
       onFocus={() => setIsCardFocused(true)}
       onBlur={() => setIsCardFocused(false)}
       className={cn(
-        "relative rounded-2xl border bg-card/30 p-5 backdrop-blur-xl outline-none transition-shadow",
+        "relative rounded-2xl border bg-card/30 p-5 backdrop-blur-md outline-none transition-shadow",
         isPending ? "border-primary/15 bg-primary/5" : "border-white/5",
         isCardFocused && sirCanShortcut && "ring-2 ring-primary/40",
       )}
@@ -1530,7 +1530,7 @@ function RequestForm({
     <form
       ref={formRef}
       action={action}
-      className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-xl shadow-2xl shadow-black/40"
+      className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-md shadow-xl shadow-black/30"
     >
       <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
         New Request
@@ -1739,7 +1739,7 @@ function QuotaUsageBar({
     <motion.div
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-wrap gap-2 rounded-2xl border border-white/5 bg-card/30 p-3 backdrop-blur-xl"
+      className="flex flex-wrap gap-2 rounded-2xl border border-white/5 bg-card/30 p-3 backdrop-blur-md"
     >
       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
         This month
@@ -2792,7 +2792,7 @@ function AllCaughtUp() {
       transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
       className={cn(
         "flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3",
-        "backdrop-blur-xl",
+        "backdrop-blur-md",
       )}
     >
       <motion.span

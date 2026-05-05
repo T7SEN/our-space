@@ -118,7 +118,7 @@ export function ReviewForm({
       transition={{ duration: 0.25 }}
       className={cn(
         "rounded-3xl border border-white/5 bg-card/40 p-6 sm:p-8",
-        "backdrop-blur-xl shadow-xl shadow-black/20",
+        "backdrop-blur-md shadow-xl shadow-black/20",
       )}
     >
       <header className="mb-6 flex items-baseline justify-between gap-3">

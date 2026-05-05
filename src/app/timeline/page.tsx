@@ -225,7 +225,7 @@ export default function TimelinePage() {
               <form
                 ref={formRef}
                 action={action}
-                className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-xl shadow-2xl shadow-black/40"
+                className="space-y-4 rounded-3xl border border-white/5 bg-card/40 p-6 backdrop-blur-md shadow-xl shadow-black/30"
               >
                 <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
                   Add a Milestone

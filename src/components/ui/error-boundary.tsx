@@ -49,7 +49,7 @@ export class ErrorBoundary extends React.Component<
         className={cn(
           "flex flex-col items-center justify-center gap-3",
           "rounded-3xl border border-destructive/20 bg-card/40 p-8",
-          "backdrop-blur-xl shadow-xl shadow-black/20",
+          "backdrop-blur-md shadow-xl shadow-black/20",
         )}
       >
         <AlertTriangle className="h-6 w-6 text-destructive/50" />

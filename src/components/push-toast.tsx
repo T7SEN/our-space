@@ -125,7 +125,7 @@ export function PushToast() {
             transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
             className={cn(
               "flex w-80 items-start gap-3 rounded-2xl border border-white/10",
-              "bg-card/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl",
+              "bg-card/95 p-4 shadow-xl shadow-black/30 backdrop-blur-md",
             )}
           >
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

@@ -111,7 +111,7 @@ export function RevealCard({ revealed, currentAuthor }: RevealCardProps) {
         className={cn(
           "flex flex-wrap items-center justify-between gap-3",
           "rounded-3xl border border-white/5 bg-card/40 px-5 py-4",
-          "backdrop-blur-xl shadow-xl shadow-black/20",
+          "backdrop-blur-md shadow-xl shadow-black/20",
         )}
       >
         <div className="flex items-center gap-3">

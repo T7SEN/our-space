@@ -304,8 +304,8 @@ function BiometricGateInner({ children }: BiometricGateProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 1.05, filter: "blur(8px)" }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.25 }}
             className={cn(
               "fixed inset-0 z-200 flex flex-col items-center justify-center",
               "bg-background",

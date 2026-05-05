@@ -25,6 +25,7 @@ import {
   createLedgerEntry,
   deleteLedgerEntry,
   getLedgerEntries,
+  purgeAllLedgerEntries,
   type LedgerEntry,
 } from "@/app/actions/ledger";
 import {
@@ -38,6 +39,7 @@ import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -191,6 +193,20 @@ export default function LedgerPage() {
             <div className="w-8" />
           )}
         </div>
+
+        {/* Sir-only purge */}
+        {isT7SEN && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge all entries"
+              onPurge={async () => {
+                const r = await purgeAllLedgerEntries();
+                if (!r.error) setEntries([]);
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Create entry form — Sir only */}
         <AnimatePresence>

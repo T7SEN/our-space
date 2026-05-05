@@ -267,3 +267,31 @@ export async function deleteTask(
     return { error: "Failed to delete task." };
   }
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function purgeAllTasks(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN") return { error: "Only Sir can purge tasks." };
+
+  try {
+    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) pipeline.del(taskKey(id));
+    pipeline.del(INDEX_KEY);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/tasks");
+    logger.warn(`[tasks] Sir purged ${ids.length} tasks.`);
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[tasks] purgeAllTasks failed:", err);
+    return { error: "Purge failed." };
+  }
+}

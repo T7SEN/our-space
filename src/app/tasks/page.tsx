@@ -32,6 +32,7 @@ import {
   createTask,
   deleteTask,
   getTasks,
+  purgeAllTasks,
   type Task,
   type TaskPriority,
 } from "@/app/actions/tasks";
@@ -45,6 +46,7 @@ import {
 } from "@/hooks/use-local-notifications";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -281,6 +283,20 @@ export default function TasksPage() {
             <div className="w-8" />
           )}
         </div>
+
+        {/* Sir-only purge */}
+        {isT7SEN && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge all tasks"
+              onPurge={async () => {
+                const r = await purgeAllTasks();
+                if (!r.error) setTasks([]);
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Create task form — T7SEN only */}
         <AnimatePresence>

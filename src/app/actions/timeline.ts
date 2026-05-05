@@ -129,3 +129,32 @@ export async function deleteMilestone(
     return { error: "Failed to delete. Please try again." };
   }
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function purgeAllMilestones(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const author = await getSessionAuthor();
+  if (!author) return { error: "Not authenticated." };
+  if (author !== "T7SEN")
+    return { error: "Only Sir can purge the timeline." };
+
+  try {
+    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) pipeline.del(milestoneKey(id));
+    pipeline.del(INDEX_KEY);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/timeline");
+    logger.warn(`[timeline] Sir purged ${ids.length} milestones.`);
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[timeline] purgeAllMilestones failed:", err);
+    return { error: "Purge failed." };
+  }
+}

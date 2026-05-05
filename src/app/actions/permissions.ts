@@ -1028,3 +1028,67 @@ export async function getPendingPermissionsCount(): Promise<number> {
     return 0;
   }
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function deletePermissionRequest(
+  id: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN")
+    return { error: "Only Sir can delete permission requests." };
+
+  try {
+    const exists = await redis.exists(permissionKey(id));
+    if (!exists) return { error: "Request not found." };
+
+    const pipeline = redis.pipeline();
+    pipeline.del(permissionKey(id));
+    pipeline.del(auditKey(id));
+    pipeline.zrem(INDEX_KEY, id);
+    await pipeline.exec();
+
+    revalidatePath("/permissions");
+    logger.warn(`[permissions] Sir deleted request ${id}.`);
+    return { success: true };
+  } catch (err) {
+    logger.error("[permissions] deletePermissionRequest failed:", err);
+    return { error: "Failed to delete request." };
+  }
+}
+
+export async function purgeAllPermissions(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN")
+    return { error: "Only Sir can purge permissions." };
+
+  try {
+    const ids = await redis.zrange<string[]>(INDEX_KEY, 0, -1);
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) {
+      pipeline.del(permissionKey(id));
+      pipeline.del(auditKey(id));
+    }
+    pipeline.del(INDEX_KEY);
+    pipeline.del(QUOTAS_KEY);
+    pipeline.del(AUTO_RULES_KEY);
+    pipeline.del(DENIED_HASHES_KEY);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/permissions");
+    logger.warn(
+      `[permissions] Sir purged ${ids.length} requests + auto-rules + quotas.`,
+    );
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[permissions] purgeAllPermissions failed:", err);
+    return { error: "Purge failed." };
+  }
+}

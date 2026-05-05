@@ -71,6 +71,7 @@ Consolidated reference for the conventions agents must follow when writing or ed
 - **Form submit-success handlers** call `void hideKeyboard()` from `@/lib/keyboard` so the soft keyboard dismisses when the form closes. Native-only; web is a no-op.
 - **Author identity color** lives in `AUTHOR_COLORS` in `src/lib/constants.ts`, backed by `--author-daddy` and `--author-kitten` tokens in `globals.css`. Use the typed map (`AUTHOR_COLORS[author].text` / `bg` / `border` / etc.) — never interpolate (`bg-author-${author}`); Tailwind v4's scanner won't find dynamic class strings.
 - **Skeletons match the shape of the eventual content.** No center spinners for page-level loads — every feature page uses `animate-pulse` placeholders shaped like the loaded layout. Inline `Loader2 animate-spin` is correct on action buttons (save, send, decide); incorrect as a route-level loading state.
+- **Per-author caps are visible alongside their list.** When a feature limits per-author counts (notes pinning at 5/author), surface the usage near the existing per-author counts: `📌 X/MAX` chip per author, destructive-tinted at cap. Server-side rejection still applies; the chip is discoverability, not enforcement. Pair with a transient toast banner when the user attempts an action while over-cap.
 - WCAG AA contrast minimum.
 - **Motion:** `motion/react`. Standard entry: `initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}`.
 

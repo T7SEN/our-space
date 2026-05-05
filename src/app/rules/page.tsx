@@ -32,6 +32,7 @@ import {
   createRule,
   deleteRule,
   getRules,
+  purgeAllRules,
   reopenRule,
   type Rule,
   type RuleStatus,
@@ -47,6 +48,7 @@ import {
 } from "@/hooks/use-local-notifications";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -332,6 +334,20 @@ export default function RulesPage() {
             <div className="w-8" />
           )}
         </div>
+
+        {/* Sir-only purge */}
+        {isT7SEN && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge all rules"
+              onPurge={async () => {
+                const r = await purgeAllRules();
+                if (!r.error) setRules([]);
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Create rule form — Sir only */}
         <AnimatePresence>

@@ -866,3 +866,54 @@ async function collectRecentDateKeys(
   }
   return set;
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function purgeAllRituals(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN")
+    return { error: "Only Sir can purge rituals." };
+
+  try {
+    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+
+    const allOccurrenceDateKeys: { ritualId: string; dateKey: string }[] = [];
+    for (const id of ids) {
+      const dks = (await redis.zrange(
+        occurrencesIndexKey(id),
+        0,
+        -1,
+      )) as string[];
+      for (const dk of dks) {
+        allOccurrenceDateKeys.push({ ritualId: id, dateKey: dk });
+      }
+    }
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) {
+      pipeline.del(ritualKey(id));
+      pipeline.del(streakKey(id));
+      pipeline.del(longestStreakKey(id));
+      pipeline.del(occurrencesIndexKey(id));
+    }
+    for (const { ritualId, dateKey } of allOccurrenceDateKeys) {
+      pipeline.del(occurrenceKey(ritualId, dateKey));
+    }
+    pipeline.del(INDEX_KEY);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/rituals");
+    logger.warn(
+      `[rituals] Sir purged ${ids.length} rituals + ${allOccurrenceDateKeys.length} occurrences.`,
+    );
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[rituals] purgeAllRituals failed:", err);
+    return { error: "Purge failed." };
+  }
+}

@@ -37,16 +37,24 @@ Every state-mutating server action **must** check `session.author` server-side, 
 
 ### Permission matrix
 
-| Action                                    | T7SEN (Sir) | Besho (kitten) |
-| ----------------------------------------- | ----------- | -------------- |
-| Create/complete/reopen rules              | ✓           | ✗              |
-| Acknowledge rule                          | ✗           | ✓              |
-| Create task                               | ✓           | ✗              |
-| Complete task                             | ✗           | ✓              |
-| Log ledger entry                          | ✓           | ✗              |
-| View safe-word history                    | ✓           | ✗              |
-| Send safe-word                            | ✗           | ✓              |
-| Write notes / react / set mood / send hug | ✓           | ✓              |
+| Action                                                                         | T7SEN (Sir) | Besho (kitten) |
+| ------------------------------------------------------------------------------ | ----------- | -------------- |
+| Create/complete/reopen rules                                                   | ✓           | ✗              |
+| Acknowledge rule                                                               | ✗           | ✓              |
+| Create task                                                                    | ✓           | ✗              |
+| Complete task                                                                  | ✗           | ✓              |
+| Log ledger entry                                                               | ✓           | ✗              |
+| View safe-word history                                                         | ✓           | ✗              |
+| Send safe-word                                                                 | ✗           | ✓              |
+| Write notes / react / set mood / send hug                                      | ✓           | ✓              |
+| Pin own notes (cap 5/author)                                                   | ✓ (own)     | ✓ (own)        |
+| Edit own note                                                                  | ✓ (own)     | ✓ (own)        |
+| Delete a note (any author's)                                                   | ✓           | ✗              |
+| Delete a permission request (any author's)                                     | ✓           | ✗              |
+| Delete a revealed review week (any author's)                                   | ✓           | ✗              |
+| Purge any feature wholesale (notes / rules / tasks / ledger / timeline / etc.) | ✓           | ✗              |
+
+The Sir-only destructive admin tier (delete + purge) is enforced in the relevant `purgeAll*` and `delete*` server actions in `src/app/actions/`; the UI gates rendering on `currentAuthor === "T7SEN"` for cosmetic discipline only — server-side rejection is the boundary.
 
 ### Canonical role check (copy this shape)
 

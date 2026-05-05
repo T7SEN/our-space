@@ -7,7 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { ArrowLeft, MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getReviewBundle } from "@/app/actions/reviews";
+import { getReviewBundle, purgeAllReviews } from "@/app/actions/reviews";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { getCurrentAuthor } from "@/app/actions/auth";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
@@ -115,6 +116,23 @@ function ReviewPageInner() {
 
           <div className="w-9" aria-hidden="true" />
         </header>
+
+        {/* Sir-only purge */}
+        {currentAuthor === "T7SEN" && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge all reviews"
+              onPurge={async () => {
+                const r = await purgeAllReviews();
+                if (!r.error) {
+                  setBundle(null);
+                  void handleRefresh();
+                }
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Past-week banner */}
         {isViewingPast && (

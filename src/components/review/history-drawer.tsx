@@ -4,11 +4,18 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronDown, ChevronUp, History, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  History,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { vibrate } from "@/lib/haptic";
 import { MY_TZ } from "@/lib/constants";
-import { getRevealedHistory } from "@/app/actions/reviews";
+import { deleteReviewWeek, getRevealedHistory } from "@/app/actions/reviews";
+import { getCurrentAuthor } from "@/app/actions/auth";
 import type { RevealedHistoryItem } from "@/lib/review-constants";
 
 function formatRevealedShort(ts: number): string {
@@ -37,6 +44,32 @@ export function HistoryDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<RevealedHistoryItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSir, setIsSir] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getCurrentAuthor().then((a) => setIsSir(a === "T7SEN"));
+  }, []);
+
+  useEffect(() => {
+    if (!confirmingId) return;
+    const t = setTimeout(() => setConfirmingId(null), 5000);
+    return () => clearTimeout(t);
+  }, [confirmingId]);
+
+  const handleDeleteWeek = async (weekDate: string) => {
+    void vibrate(50, "heavy");
+    setDeletingId(weekDate);
+    const r = await deleteReviewWeek(weekDate);
+    setDeletingId(null);
+    if (!r.error) {
+      setItems((prev) => (prev ?? []).filter((it) => it.weekDate !== weekDate));
+      setConfirmingId(null);
+      // If the deleted week was the active one, route back to current.
+      if (weekDate === activeWeek) router.push("/review");
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || items !== null) return;
@@ -160,32 +193,90 @@ export function HistoryDrawer() {
                 items.length > 0 &&
                 items.map((item) => {
                   const isActive = item.weekDate === activeWeek;
+                  const isConfirming = confirmingId === item.weekDate;
+                  const isDeleting = deletingId === item.weekDate;
                   return (
-                    <button
+                    <div
                       key={item.weekDate}
-                      type="button"
-                      onClick={() => onSelect(item.weekDate)}
-                      disabled={isActive || undefined}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-xl px-3.5 py-2.5",
-                        "border text-left transition-colors",
+                        "flex items-stretch gap-1 rounded-xl",
+                        "border transition-colors",
                         isActive
-                          ? "cursor-default border-primary/20 bg-primary/10"
-                          : "border-white/5 bg-black/20 hover:border-white/15 hover:bg-black/30",
+                          ? "border-primary/20 bg-primary/10"
+                          : "border-white/5 bg-black/20",
                       )}
                     >
-                      <span
+                      <button
+                        type="button"
+                        onClick={() => onSelect(item.weekDate)}
+                        disabled={isActive || undefined}
                         className={cn(
-                          "text-[11px] font-semibold",
-                          isActive ? "text-primary" : "text-foreground/80",
+                          "flex flex-1 items-center justify-between gap-2 px-3.5 py-2.5",
+                          "text-left transition-colors",
+                          isActive
+                            ? "cursor-default"
+                            : "hover:bg-white/5",
+                          "rounded-xl",
                         )}
                       >
-                        {item.label}
-                      </span>
-                      <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
-                        Revealed {formatRevealedShort(item.revealedAt)}
-                      </span>
-                    </button>
+                        <span
+                          className={cn(
+                            "text-[11px] font-semibold",
+                            isActive ? "text-primary" : "text-foreground/80",
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                          Revealed {formatRevealedShort(item.revealedAt)}
+                        </span>
+                      </button>
+                      {isSir && !isConfirming && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void vibrate(30, "light");
+                            setConfirmingId(item.weekDate);
+                          }}
+                          aria-label={`Delete week ${item.label}`}
+                          className="flex shrink-0 items-center justify-center rounded-r-xl px-2.5 text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                      {isSir && isConfirming && (
+                        <div className="flex shrink-0 items-center gap-1 px-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmingId(null);
+                            }}
+                            disabled={isDeleting || undefined}
+                            className="rounded-full border border-border/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground active:scale-95 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteWeek(item.weekDate);
+                            }}
+                            disabled={isDeleting || undefined}
+                            className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white hover:bg-destructive/90 active:scale-95 disabled:opacity-60"
+                          >
+                            {isDeleting ? (
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-2.5 w-2.5" />
+                            )}
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
             </div>

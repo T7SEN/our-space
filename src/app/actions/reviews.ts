@@ -630,3 +630,63 @@ function makeEmptyBundle(weekDate: string): ReviewBundle {
     summary: makeEmptySummary(weekDate),
   };
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function deleteReviewWeek(
+  weekDate: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN")
+    return { error: "Only Sir can delete reviews." };
+
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.del(reviewKey(weekDate, "T7SEN"));
+    pipeline.del(reviewKey(weekDate, "Besho"));
+    pipeline.zrem(REVEALED_INDEX, weekDate);
+    await pipeline.exec();
+
+    revalidatePath("/review");
+    logger.warn(`[reviews] Sir deleted week ${weekDate}.`);
+    return { success: true };
+  } catch (err) {
+    logger.error("[reviews] deleteReviewWeek failed:", err);
+    return { error: "Failed to delete week." };
+  }
+}
+
+export async function purgeAllReviews(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN")
+    return { error: "Only Sir can purge reviews." };
+
+  try {
+    const weekDates = (await redis.zrange(
+      REVEALED_INDEX,
+      0,
+      -1,
+    )) as string[];
+
+    const pipeline = redis.pipeline();
+    for (const wd of weekDates) {
+      pipeline.del(reviewKey(wd, "T7SEN"));
+      pipeline.del(reviewKey(wd, "Besho"));
+    }
+    pipeline.del(REVEALED_INDEX);
+    if (weekDates.length > 0) await pipeline.exec();
+
+    revalidatePath("/review");
+    logger.warn(`[reviews] Sir purged ${weekDates.length} weeks.`);
+    return { success: true, deletedCount: weekDates.length };
+  } catch (err) {
+    logger.error("[reviews] purgeAllReviews failed:", err);
+    return { error: "Purge failed." };
+  }
+}

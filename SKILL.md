@@ -48,6 +48,8 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - Icon-only buttons need ≥24dp effective hit area. Use `p-1.5` minimum for inline icons; `p-2` for primary actions like panel close. Never `opacity-0 group-hover:opacity-100` for actions a mobile user needs to reach — there is no hover.
 - Form submit success effects call `void hideKeyboard()` from `@/lib/keyboard` so the soft keyboard dismisses with the form.
 - Mobile-friendly form inputs: `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` — set them deliberately. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode.
+- `<body>` carries `suppressHydrationWarning` to absorb browser-extension-injected attributes; don't remove.
+- Per-page purge + per-item delete are Sir-only on both client (`currentAuthor === "T7SEN"` gate) and server (role check in the action). Use `<PurgeButton>` from `@/components/admin/purge-button` for purge UI; mirror the two-step / heavy-haptic pattern for new per-item destructive controls.
 
 ---
 

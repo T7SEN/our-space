@@ -220,3 +220,31 @@ export async function deleteRule(
     return { error: "Failed to delete rule." };
   }
 }
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function purgeAllRules(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const session = await getSession();
+  if (!session?.author) return { error: "Not authenticated." };
+  if (session.author !== "T7SEN") return { error: "Only Sir can purge rules." };
+
+  try {
+    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) pipeline.del(ruleKey(id));
+    pipeline.del(INDEX_KEY);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/rules");
+    logger.warn(`[rules] Sir purged ${ids.length} rules.`);
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[rules] purgeAllRules failed:", err);
+    return { error: "Purge failed." };
+  }
+}

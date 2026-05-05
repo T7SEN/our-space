@@ -27,21 +27,28 @@ import {
   RefreshCw,
   Search,
   Send,
+  Trash2,
   WifiOff,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  deleteNote,
   editNote,
   getCurrentAuthor,
   getNoteCount,
   getNoteCountByAuthor,
   getNotes,
+  purgeAllNotes,
   saveNote,
   togglePinNote,
   type Note,
 } from "@/app/actions/notes";
-import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
+import {
+  MAX_CONTENT_LENGTH,
+  MAX_PINS_PER_AUTHOR,
+  PAGE_SIZE,
+} from "@/lib/notes-constants";
 import {
   AUTHOR_COLORS,
   START_DATE,
@@ -56,6 +63,7 @@ import {
 } from "@/components/ui/tooltip";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { useNetwork } from "@/hooks/use-network";
@@ -108,6 +116,33 @@ function resizeTextarea(el: HTMLTextAreaElement, minHeight = 120) {
   target.style.height = `${Math.max(target.scrollHeight, minHeight)}px`;
 }
 
+/**
+ * Sort: T7SEN-pinned at the top, then Besho-pinned, then everything else.
+ * Within each pinned group, newest pin (`pinnedAt`) appears first; if a
+ * legacy pinned record has no `pinnedAt`, fall back to `createdAt`. The
+ * unpinned group keeps its incoming order (the index is already reverse-
+ * chronological by `createdAt`).
+ */
+function sortPinnedFirst(notes: Note[]): Note[] {
+  const sirPinned: Note[] = [];
+  const kittenPinned: Note[] = [];
+  const rest: Note[] = [];
+  for (const n of notes) {
+    if (n.pinned) {
+      if (n.author === "T7SEN") sirPinned.push(n);
+      else if (n.author === "Besho") kittenPinned.push(n);
+      else rest.push(n);
+    } else {
+      rest.push(n);
+    }
+  }
+  const byPinnedAtDesc = (a: Note, b: Note) =>
+    (b.pinnedAt ?? b.createdAt) - (a.pinnedAt ?? a.createdAt);
+  sirPinned.sort(byPinnedAtDesc);
+  kittenPinned.sort(byPinnedAtDesc);
+  return [...sirPinned, ...kittenPinned, ...rest];
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function NotesPage() {
@@ -129,6 +164,7 @@ export default function NotesPage() {
   const [justConfirmedId, setJustConfirmedId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
 
   const charCount = composeContent.length;
   const [state, action, isPending] = useActionState(saveNote, null);
@@ -393,16 +429,63 @@ export default function NotesPage() {
     );
   };
 
+  // ── Delete (Sir-only) ─────────────────────────────────────────────────────
+  const handleDelete = async (id: string) => {
+    void vibrate(50, "medium");
+    const snapshot = notes;
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    const result = await deleteNote(id);
+    if (result.error) {
+      setNotes(snapshot);
+      return result;
+    }
+    void Promise.all([getNoteCount(), getNoteCountByAuthor()]).then(
+      ([count, counts]) => {
+        setNoteCount(count);
+        setAuthorCounts(counts);
+      },
+    );
+    return result;
+  };
+
+  const handlePurge = async () => {
+    const result = await purgeAllNotes();
+    if (!result.error) {
+      setNotes([]);
+      setOptimisticNotes([]);
+      setNoteCount(0);
+      setAuthorCounts({ T7SEN: 0, Besho: 0 });
+    }
+    return result;
+  };
+
   // ── Pin ───────────────────────────────────────────────────────────────────
   const handlePin = async (id: string) => {
     void vibrate(50, "light");
     const result = await togglePinNote(id);
+    if (result.error) {
+      void vibrate([60, 40, 60], "heavy");
+      setPinError(result.error);
+      return;
+    }
     if (result.pinned !== undefined) {
+      const pinnedAt = result.pinned ? Date.now() : undefined;
       setNotes((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, pinned: result.pinned } : n)),
+        prev.map((n) =>
+          n.id === id
+            ? { ...n, pinned: result.pinned, pinnedAt: pinnedAt ?? n.pinnedAt }
+            : n,
+        ),
       );
     }
   };
+
+  // Auto-clear pin error toast after 3s.
+  useEffect(() => {
+    if (!pinError) return;
+    const t = setTimeout(() => setPinError(null), 3000);
+    return () => clearTimeout(t);
+  }, [pinError]);
 
   // ── Derived display ───────────────────────────────────────────────────────
   const allDisplayNotes = [...optimisticNotes, ...notes];
@@ -416,6 +499,23 @@ export default function NotesPage() {
         n.content.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : filteredNotes;
+
+  // Sort: T7SEN-pinned (newest pinnedAt first) → Besho-pinned (newest first)
+  // → unpinned (existing order, already reverse-chronological from the index).
+  const sortedNotes = sortPinnedFirst(searchedNotes);
+
+  // Per-author pin counts derived from the loaded notes. Pins always sit
+  // at the top of the index after the new sort, so the first page always
+  // contains all of them — counting from local state is correct.
+  const pinCounts = (() => {
+    const counts = { T7SEN: 0, Besho: 0 };
+    for (const n of notes) {
+      if (n.pinned && (n.author === "T7SEN" || n.author === "Besho")) {
+        counts[n.author]++;
+      }
+    }
+    return counts;
+  })();
 
   const isOverLimit = charCount > MAX_CONTENT_LENGTH;
 
@@ -465,6 +565,27 @@ export default function NotesPage() {
         )}
       </AnimatePresence>
 
+      {/* Pin cap / pin-error transient banner */}
+      <AnimatePresence>
+        {pinError && (
+          <motion.div
+            key="pin-error"
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed left-1/2 top-4 z-50 -translate-x-1/2"
+          >
+            <div
+              role="alert"
+              className="flex items-center gap-2 rounded-full border border-destructive/30 bg-card/90 px-4 py-2 text-xs font-semibold text-destructive shadow-lg backdrop-blur-md"
+            >
+              <Pin className="h-3 w-3" />
+              {pinError}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="relative z-10 mx-auto max-w-3xl space-y-10 pt-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -499,16 +620,48 @@ export default function NotesPage() {
           </button>
         </div>
 
-        {/* Author counts */}
+        {/* Author counts + per-author pin usage */}
         {authorCounts && (
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
-              {TITLE_BY_AUTHOR.T7SEN}: {authorCounts.T7SEN}
-            </span>
-            <span className="text-[10px] text-muted-foreground/20">·</span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary/50">
-              {TITLE_BY_AUTHOR.Besho}: {authorCounts.Besho}
-            </span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
+                {TITLE_BY_AUTHOR.T7SEN}: {authorCounts.T7SEN}
+              </span>
+              <span
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest",
+                  pinCounts.T7SEN >= MAX_PINS_PER_AUTHOR
+                    ? "text-destructive"
+                    : "text-foreground/40",
+                )}
+                aria-label={`${TITLE_BY_AUTHOR.T7SEN} has ${pinCounts.T7SEN} of ${MAX_PINS_PER_AUTHOR} pins used`}
+              >
+                <Pin className="h-2.5 w-2.5" />
+                {pinCounts.T7SEN}/{MAX_PINS_PER_AUTHOR}
+              </span>
+              <span className="text-[10px] text-muted-foreground/20">·</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/50">
+                {TITLE_BY_AUTHOR.Besho}: {authorCounts.Besho}
+              </span>
+              <span
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest",
+                  pinCounts.Besho >= MAX_PINS_PER_AUTHOR
+                    ? "text-destructive"
+                    : "text-primary/50",
+                )}
+                aria-label={`${TITLE_BY_AUTHOR.Besho} has ${pinCounts.Besho} of ${MAX_PINS_PER_AUTHOR} pins used`}
+              >
+                <Pin className="h-2.5 w-2.5" />
+                {pinCounts.Besho}/{MAX_PINS_PER_AUTHOR}
+              </span>
+            </div>
+            {currentAuthor === "T7SEN" && (
+              <PurgeButton
+                label="Purge all notes"
+                onPurge={handlePurge}
+              />
+            )}
           </div>
         )}
 
@@ -719,18 +872,19 @@ export default function NotesPage() {
             <EmptyState filter={filter} searchQuery={searchQuery} />
           ) : (
             <>
-              {searchedNotes.map((note, index) => (
+              {sortedNotes.map((note, index) => (
                 <NoteItem
                   key={note.id}
                   note={note}
                   index={index}
-                  isLast={index === searchedNotes.length - 1}
+                  isLast={index === sortedNotes.length - 1}
                   currentAuthor={currentAuthor}
                   isOptimistic={note.id.startsWith("optimistic-")}
                   isJustConfirmed={note.id === justConfirmedId}
                   onEdit={handleNoteEdit}
                   onReactionsChange={handleReactionsChange}
                   onPin={handlePin}
+                  onDelete={handleDelete}
                 />
               ))}
 
@@ -873,6 +1027,7 @@ function NoteItem({
   onEdit,
   onPin,
   onReactionsChange,
+  onDelete,
 }: {
   note: Note;
   index: number;
@@ -886,6 +1041,7 @@ function NoteItem({
   ) => Promise<{ success?: boolean; error?: string }>;
   onReactionsChange: (id: string, reactions: Record<string, string>) => void;
   onPin: (id: string) => void;
+  onDelete: (id: string) => Promise<{ success?: boolean; error?: string }>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(note.content);
@@ -893,7 +1049,17 @@ function NoteItem({
   const [editError, setEditError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isSir = currentAuthor === "T7SEN";
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const id = setTimeout(() => setConfirmingDelete(false), 5000);
+    return () => clearTimeout(id);
+  }, [confirmingDelete]);
 
   const isEdited = !!note.editedAt;
   const isOwnNote = note.author === currentAuthor;
@@ -1095,6 +1261,49 @@ function NoteItem({
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
+              )}
+
+              {isSir && !confirmingDelete && (
+                <button
+                  onClick={() => {
+                    void vibrate(30, "light");
+                    setConfirmingDelete(true);
+                  }}
+                  aria-label="Delete note"
+                  className="rounded-full p-1.5 text-muted-foreground/40 transition-all hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {isSir && confirmingDelete && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={isDeleting || undefined}
+                    className="rounded-full border border-border/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground active:scale-95 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      void vibrate(50, "heavy");
+                      setIsDeleting(true);
+                      const r = await onDelete(note.id);
+                      setIsDeleting(false);
+                      if (!r.error) setConfirmingDelete(false);
+                    }}
+                    disabled={isDeleting || undefined}
+                    className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white hover:bg-destructive/90 active:scale-95 disabled:opacity-60"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-2.5 w-2.5" />
+                    )}
+                    Delete
+                  </button>
+                </div>
               )}
             </div>
           )}

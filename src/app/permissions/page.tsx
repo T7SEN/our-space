@@ -36,11 +36,13 @@ import { cn } from "@/lib/utils";
 import {
   createPermission,
   decidePermission,
+  deletePermissionRequest,
   getAutoRules,
   getCategoryUsage,
   getPermissionAudit,
   getPermissions,
   getQuotas,
+  purgeAllPermissions,
   saveAutoRules,
   setQuotas,
   withdrawPermission,
@@ -69,6 +71,7 @@ import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -292,6 +295,23 @@ export default function PermissionsPage() {
     [requests, handleRefresh],
   );
 
+  // Sir-only per-request delete. Optimistic snapshot/rollback.
+  const handleDeleteRequest = useCallback(
+    async (id: string) => {
+      void vibrate(50, "medium");
+      const snapshot = requests;
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+      const result = await deletePermissionRequest(id);
+      if (result.error) {
+        setRequests(snapshot);
+        return { error: result.error };
+      }
+      void handleRefresh();
+      return {};
+    },
+    [requests, handleRefresh],
+  );
+
   // Group: pending oldest-first (FIFO action queue), decided newest-first.
   const { pending, decided } = useMemo(() => {
     const pendingArr: PermissionRequest[] = [];
@@ -503,6 +523,23 @@ export default function PermissionsPage() {
           </div>
         </div>
 
+        {/* Sir-only purge */}
+        {isT7SEN && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge permissions"
+              onPurge={async () => {
+                const r = await purgeAllPermissions();
+                if (!r.error) {
+                  setRequests([]);
+                  void handleRefresh();
+                }
+                return r;
+              }}
+            />
+          </div>
+        )}
+
         {/* Create form — Besho only */}
         <AnimatePresence>
           {showForm && isBesho && (
@@ -604,6 +641,7 @@ export default function PermissionsPage() {
                     now={now}
                     onDecide={handleDecide}
                     onWithdraw={handleWithdraw}
+                    onDelete={handleDeleteRequest}
                   />
                 ))}
               </Section>
@@ -627,6 +665,7 @@ export default function PermissionsPage() {
                       now={now}
                       onDecide={handleDecide}
                       onWithdraw={handleWithdraw}
+                      onDelete={handleDeleteRequest}
                       pendingIndex={idx}
                       pendingTotal={pending.length}
                     />
@@ -648,6 +687,7 @@ export default function PermissionsPage() {
                       now={now}
                       onDecide={handleDecide}
                       onWithdraw={handleWithdraw}
+                      onDelete={handleDeleteRequest}
                     />
                   ))}
                 </Section>
@@ -756,6 +796,7 @@ function RequestItem({
   now,
   onDecide,
   onWithdraw,
+  onDelete,
   pendingIndex,
   pendingTotal,
 }: {
@@ -770,6 +811,7 @@ function RequestItem({
     options: { reply?: string; terms?: string; reason?: DenialReason },
   ) => Promise<{ error?: string }>;
   onWithdraw: (id: string) => Promise<{ error?: string }>;
+  onDelete: (id: string) => Promise<{ error?: string }>;
   /** Zero-based position within the pending FIFO. Undefined for
    *  decided items (they don't show the FIFO chip). */
   pendingIndex?: number;
@@ -783,6 +825,14 @@ function RequestItem({
   const [actionError, setActionError] = useState<string | null>(null);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const t = setTimeout(() => setConfirmingDelete(false), 5000);
+    return () => clearTimeout(t);
+  }, [confirmingDelete]);
 
   // Long-press copy state. Timer ref kept in a useRef so React doesn't
   // re-render on every tick. `copied` flips true for ~1.5s on success
@@ -1019,8 +1069,58 @@ function RequestItem({
             {auditCount === 1 ? "x" : "x"}
           </button>
         )}
-        <span className="ml-auto text-[10px] text-muted-foreground/40">
-          {formatRelative(request.requestedAt, now)}
+        <span className="ml-auto flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground/40">
+            {formatRelative(request.requestedAt, now)}
+          </span>
+          {isT7SEN && !confirmingDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                void vibrate(30, "light");
+                setConfirmingDelete(true);
+              }}
+              disabled={isDeleting || undefined}
+              aria-label="Delete request"
+              className="rounded-full p-1.5 text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95 disabled:opacity-50"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          )}
+          {isT7SEN && confirmingDelete && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={isDeleting || undefined}
+                className="rounded-full border border-border/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground active:scale-95 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  void vibrate(50, "heavy");
+                  setIsDeleting(true);
+                  const r = await onDelete(request.id);
+                  setIsDeleting(false);
+                  if (r.error) {
+                    setActionError(r.error);
+                    setConfirmingDelete(false);
+                  }
+                }}
+                disabled={isDeleting || undefined}
+                className="flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white hover:bg-destructive/90 active:scale-95 disabled:opacity-60"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-2.5 w-2.5" />
+                )}
+                Delete
+              </button>
+            </div>
+          )}
         </span>
       </div>
 

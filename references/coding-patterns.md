@@ -974,6 +974,123 @@ If you add a new form whose success closes the form, wire `void hideKeyboard()` 
 
 ---
 
+## 26. Sir-Only Destructive Admin Controls
+
+Per-page purge buttons and per-item delete UIs that wipe shared data are restricted to T7SEN (Sir). The pattern has three layers:
+
+### 1. Server-side role check (the boundary)
+
+```ts
+export async function purgeAllNotes(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const author = await getSessionAuthor();
+  if (!author) return { error: "Not authenticated." };
+  if (author !== "T7SEN") return { error: "Only Sir can purge notes." };
+
+  const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+  const pipeline = redis.pipeline();
+  for (const id of ids) {
+    pipeline.del(noteKey(id));
+    pipeline.del(`reactions:${id}`);
+  }
+  pipeline.del(INDEX_KEY);
+  pipeline.del(PINNED_KEY);
+  pipeline.del(LEGACY_KEY);
+  pipeline.set(countKey("T7SEN"), 0);
+  pipeline.set(countKey("Besho"), 0);
+  if (ids.length > 0) await pipeline.exec();
+
+  revalidatePath("/notes");
+  logger.warn(`[notes] Sir purged ${ids.length} notes.`);
+  return { success: true, deletedCount: ids.length };
+}
+```
+
+Every purge logs at `warn` so the action is visible in Sentry as a breadcrumb. Every purge pipelines item-key + index-key + sub-key deletes (audit logs, occurrences, streaks, reactions, counts, quotas, auto-rules, denied-hash sets) so partial failure is impossible.
+
+### 2. Client gate (cosmetic, not security)
+
+```tsx
+{isT7SEN && (
+  <PurgeButton
+    label="Purge all notes"
+    onPurge={async () => {
+      const r = await purgeAllNotes();
+      if (!r.error) setNotes([]);
+      return r;
+    }}
+  />
+)}
+```
+
+The `<PurgeButton>` component does NOT check the role itself — the caller does. Server-side check is the actual security boundary.
+
+### 3. Two-step confirmation UX
+
+`<PurgeButton>` (at `src/components/admin/purge-button.tsx`):
+- First tap → flips to red `Confirm purge` + `Cancel` for 5s, fires medium haptic.
+- Second tap within 5s → fires heavy `[100, 50, 100]` haptic, calls `onPurge`, locks the button while busy.
+- No tap within 5s → auto-cancel back to initial state.
+
+The same two-tap shape is mirrored on per-item Sir-only delete controls in `notes/page.tsx::NoteItem`, `permissions/page.tsx::RequestItem`, and `review/history-drawer.tsx`. Existing per-item delete mechanisms on tasks, rules, ledger, timeline, rituals, and permissions auto-rules are untouched — they predate this change and use their own role gates.
+
+### Inventory of new server actions
+
+| Action                           | Scope                                      |
+| -------------------------------- | ------------------------------------------ |
+| `deleteNote(id)`                 | Single note + reactions + index + count    |
+| `purgeAllNotes()`                | All notes + reactions + index + counts     |
+| `purgeAllRules()`                | All rules + index                          |
+| `purgeAllTasks()`                | All tasks + index                          |
+| `purgeAllLedgerEntries()`        | All ledger entries + index                 |
+| `purgeAllMilestones()`           | All timeline milestones + index            |
+| `deletePermissionRequest(id)`    | Single request + audit log + index entry   |
+| `purgeAllPermissions()`          | All requests + audit logs + auto-rules + quotas + denied-hashes |
+| `purgeAllRituals()`              | All rituals + occurrences + streaks + index |
+| `deleteReviewWeek(weekDate)`     | Both authors' records for one week + index |
+| `purgeAllReviews()`              | All revealed weeks + index                 |
+
+### Skipped intentionally
+
+- Re-ask block keys (`permission:reask-block:{hash}`) are TTL-bound and left to expire after a permissions purge — sweeping them requires `KEYS *` which Upstash discourages.
+- Solo / orphaned weekly review records (one author submitted but never revealed) aren't in the `reviews:revealed` index, so they survive a `purgeAllReviews`. Acceptable trade — the index is the canonical "things the user can navigate to" surface.
+
+---
+
+## 27. `<body>` Suppresses Hydration on Browser-Extension Attributes
+
+Browser extensions (Grammarly, password managers, tab/session managers like the one that injects `inmaintabuse="1"`) modify `<body>` after SSR delivers the HTML and before React hydrates. React compares the DOM with its expected tree and throws a hydration mismatch warning even though no app code is wrong.
+
+### Right
+
+```tsx
+// src/app/layout.tsx
+<html
+  lang="en"
+  className={...}
+  style={{ colorScheme: "dark" }}
+  suppressHydrationWarning
+>
+  <body className="flex min-h-full flex-col" suppressHydrationWarning>
+    {/* ... */}
+  </body>
+</html>
+```
+
+### Why both
+
+`suppressHydrationWarning` is **one level only** — it suppresses for the element it's set on, not its children. Both `<html>` (where `next-themes` typically writes a class) and `<body>` (where extensions write attributes) need it independently. Children inside the layout still hydrate strictly — a real mismatch in any descendant still surfaces normally.
+
+### Don't
+
+- Don't propagate `suppressHydrationWarning` to children to silence other warnings — those are real bugs.
+- Don't remove it from `<body>` "for cleanliness" — the extensions are not under your control, and the Honor and Samsung devices may run different ones.
+
+---
+
 ## Cross-References
 
 - `src/lib/native.ts` — `isNative()` and `globalThis` cast example
@@ -989,7 +1106,9 @@ If you add a new form whose success closes the form, wire `void hideKeyboard()` 
 - `src/components/navigation-progress.tsx` — top progress bar fired on internal `<a href>` clicks
 - `src/components/dashboard/today-strip.tsx` — daily-attention chip strip wired to `useNavBadges` + `getTodayMoods`
 - `src/components/dashboard/distance-card.tsx` — `@capacitor/geolocation` consumer; Haversine + status badge
-- `src/components/dashboard/counter-card.tsx`, `timezone-card.tsx` — own their internal ticks
+- `src/components/dashboard/counter-card.tsx` — own internal 1Hz tick + anniversary countdown (closer of next 30-day vs yearly milestone), unit-toggle drives both the main and anniversary numbers
+- `src/components/dashboard/timezone-card.tsx` — own internal 60s tick
+- `src/components/admin/purge-button.tsx` — Sir-only two-step destructive confirm. Caller gates render
 - `src/hooks/use-network.ts` — Capacitor-aware network status
 - `src/hooks/use-pull-to-refresh.ts` — bails when touch starts inside `[role="dialog"]`
 - `src/app/template.tsx` — per-route enter animation, `ROUTE_ORDER` for directional slide

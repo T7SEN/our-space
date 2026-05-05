@@ -23,6 +23,7 @@ import {
   addMilestone,
   deleteMilestone,
   getMilestones,
+  purgeAllMilestones,
   type Milestone,
 } from "@/app/actions/timeline";
 import { getCurrentAuthor } from "@/app/actions/auth";
@@ -33,6 +34,7 @@ import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { useKeyboardHeight } from "@/hooks/use-keyboard";
 import { logger } from "@/lib/logger";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 
@@ -195,6 +197,20 @@ export default function TimelinePage() {
             )}
           </button>
         </div>
+
+        {/* Sir-only purge */}
+        {currentAuthor === "T7SEN" && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge timeline"
+              onPurge={async () => {
+                const r = await purgeAllMilestones();
+                if (!r.error) setMilestones([]);
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Add milestone form */}
         <AnimatePresence>

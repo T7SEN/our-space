@@ -4,7 +4,11 @@ import { Redis } from "@upstash/redis";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { decrypt } from "@/lib/auth-utils";
-import { MAX_CONTENT_LENGTH, PAGE_SIZE } from "@/lib/notes-constants";
+import {
+  MAX_CONTENT_LENGTH,
+  MAX_PINS_PER_AUTHOR,
+  PAGE_SIZE,
+} from "@/lib/notes-constants";
 import { sendNotification } from "@/app/actions/notifications";
 import { getReactionsForNotes } from "@/app/actions/reactions";
 import { logger } from "@/lib/logger";
@@ -18,6 +22,9 @@ export interface Note {
   originalContent?: string;
   reactions?: Record<string, string>;
   pinned?: boolean;
+  /** ms timestamp when pinned. Set on pin, ignored when `pinned=false`.
+   *  Used for sorting within a per-author pin group (newest pin first). */
+  pinnedAt?: number;
 }
 
 const redis = new Redis({
@@ -291,7 +298,31 @@ export async function togglePinNote(
     }
 
     const nowPinned = !existing.pinned;
-    const updatedNote: Note = { ...existing, pinned: nowPinned };
+
+    if (nowPinned) {
+      // Cap of MAX_PINS_PER_AUTHOR per author. Walk all notes once to
+      // count this author's currently-pinned. N is small (a 2-user
+      // app); a single mget is fine.
+      const allIds = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+      if (allIds.length > 0) {
+        const allNotes = await redis.mget<(Note | null)[]>(
+          ...allIds.map(noteKey),
+        );
+        const pinnedByAuthor = allNotes.filter(
+          (n): n is Note =>
+            n !== null && n.author === author && n.pinned === true,
+        );
+        if (pinnedByAuthor.length >= MAX_PINS_PER_AUTHOR) {
+          return {
+            error: `You can pin up to ${MAX_PINS_PER_AUTHOR} notes. Unpin one first.`,
+          };
+        }
+      }
+    }
+
+    const updatedNote: Note = nowPinned
+      ? { ...existing, pinned: true, pinnedAt: Date.now() }
+      : { ...existing, pinned: false };
 
     const pipeline = redis.pipeline();
     pipeline.set(noteKey(id), updatedNote);
@@ -307,5 +338,70 @@ export async function togglePinNote(
   } catch (error) {
     logger.error("[notes] Failed to toggle pin:", error);
     return { error: "Failed to pin note." };
+  }
+}
+
+// ─── Sir-only destructive ─────────────────────────────────────────────────────
+
+export async function deleteNote(
+  id: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const author = await getSessionAuthor();
+  if (!author) return { error: "Not authenticated." };
+  if (author !== "T7SEN") return { error: "Only Sir can delete notes." };
+
+  try {
+    const note = await redis.get<Note>(noteKey(id));
+    if (!note) return { error: "Note not found." };
+
+    const pipeline = redis.pipeline();
+    pipeline.del(noteKey(id));
+    pipeline.del(`reactions:${id}`);
+    pipeline.zrem(INDEX_KEY, id);
+    pipeline.srem(PINNED_KEY, id);
+    if (note.author === "T7SEN" || note.author === "Besho") {
+      pipeline.decr(countKey(note.author));
+    }
+    await pipeline.exec();
+
+    revalidatePath("/notes");
+    logger.warn(`[notes] Sir deleted note ${id} by ${note.author}.`);
+    return { success: true };
+  } catch (err) {
+    logger.error("[notes] deleteNote failed:", err);
+    return { error: "Failed to delete note." };
+  }
+}
+
+export async function purgeAllNotes(): Promise<{
+  success?: boolean;
+  error?: string;
+  deletedCount?: number;
+}> {
+  const author = await getSessionAuthor();
+  if (!author) return { error: "Not authenticated." };
+  if (author !== "T7SEN") return { error: "Only Sir can purge notes." };
+
+  try {
+    const ids = (await redis.zrange(INDEX_KEY, 0, -1)) as string[];
+
+    const pipeline = redis.pipeline();
+    for (const id of ids) {
+      pipeline.del(noteKey(id));
+      pipeline.del(`reactions:${id}`);
+    }
+    pipeline.del(INDEX_KEY);
+    pipeline.del(PINNED_KEY);
+    pipeline.del(LEGACY_KEY);
+    pipeline.set(countKey("T7SEN"), 0);
+    pipeline.set(countKey("Besho"), 0);
+    if (ids.length > 0) await pipeline.exec();
+
+    revalidatePath("/notes");
+    logger.warn(`[notes] Sir purged ${ids.length} notes.`);
+    return { success: true, deletedCount: ids.length };
+  } catch (err) {
+    logger.error("[notes] purgeAllNotes failed:", err);
+    return { error: "Purge failed." };
   }
 }

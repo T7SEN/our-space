@@ -106,6 +106,8 @@ These compile and lint clean but break at runtime, in SSR, or in React 19 strict
 - **Tap-target sizes ≥24dp; no `opacity-0 group-hover` for primary mobile actions.** Icon-only buttons get `p-1.5` minimum (`p-2` for panel close / drawer dismiss / push-toast dismiss). Buttons that hover-reveal with `opacity-0` must gate the hidden state behind `md:` so mobile sees them at a muted color (e.g. `opacity-100 md:opacity-0 md:group-hover:opacity-100`).
 - **`void hideKeyboard()` after form-submit success.** Every `useEffect(() => { if (state?.success) ... }, [state])` block calls `void hideKeyboard()` from `@/lib/keyboard.ts` so the soft keyboard dismisses with the form. Native-only; web is a no-op.
 - **Mobile-friendly form inputs.** Set `inputMode`, `enterKeyHint`, `autoComplete`, `autoCorrect`, `autoCapitalize`, `spellCheck` deliberately per field. `<input type="search">` for search; `autoComplete="current-password"` for the login passcode. Don't blanket-disable autocorrect on prose textareas — that hurts notes/rules writing.
+- **`<body>` carries `suppressHydrationWarning`.** Browser extensions (Grammarly, tab managers, etc.) inject attributes on `<body>` between SSR delivery and React hydration. The suppression is one-level only — children still hydrate strictly. Don't remove it unless every two-user device confirms no extension is touching `<body>`.
+- **Sir-only destructive admin tooling.** Per-page purge buttons and the new per-item delete UIs (notes / permissions / review weeks) are gated client-side on `currentAuthor === "T7SEN"` AND server-side via the canonical role check. The reusable `<PurgeButton>` (`src/components/admin/purge-button.tsx`) handles two-step confirmation + 5s auto-cancel + heavy-haptic commit. Existing per-item delete mechanisms on tasks/rules/ledger/timeline/rituals are untouched; new wiring only added where missing.
 
 ---
 
@@ -186,8 +188,9 @@ src/
 │   ├── theme-provider.tsx
 │   ├── global-logger.tsx
 │   ├── navigation/             # top-navbar (Heart icon mobile, wordmark md:+), floating-navbar (5 primary tabs + More sheet)
-│   ├── dashboard/              # Cards: Mood, Counter, Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
-│   ├── review/                 # Form, reveal card, summary panel, history drawer
+│   ├── dashboard/              # Cards: Mood, Counter (with anniversary countdown), Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
+│   ├── review/                 # Form, reveal card, summary panel, history drawer (Sir-only per-week delete)
+│   ├── admin/                  # PurgeButton — Sir-only destructive controls (caller gates render on isT7SEN)
 │   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary, Sheet
 ├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges, use-pull-to-refresh
 ├── lib/                        # auth-utils, cairo-time, native, haptic, keyboard, clipboard, logger, constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants

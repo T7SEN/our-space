@@ -36,6 +36,7 @@ import {
   getRituals,
   grantSkipDay,
   pauseRitual,
+  purgeAllRituals,
   resumeRitual,
   submitOccurrence,
   updateRitual,
@@ -66,6 +67,7 @@ import { usePresence } from "@/hooks/use-presence";
 import { useRefreshListener } from "@/hooks/use-refresh-listener";
 import { vibrate } from "@/lib/haptic";
 import { hideKeyboard } from "@/lib/keyboard";
+import { PurgeButton } from "@/components/admin/purge-button";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
@@ -522,6 +524,20 @@ export default function RitualsPage() {
             <div className="w-8" />
           )}
         </div>
+
+        {/* Sir-only purge */}
+        {isT7SEN && (
+          <div className="flex justify-end">
+            <PurgeButton
+              label="Purge all rituals"
+              onPurge={async () => {
+                const r = await purgeAllRituals();
+                if (!r.error) setRituals([]);
+                return r;
+              }}
+            />
+          </div>
+        )}
 
         {/* Create / edit ritual form — Sir only */}
         <AnimatePresence>

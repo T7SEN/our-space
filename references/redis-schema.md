@@ -32,15 +32,21 @@ The `KV_REST_API_*` naming is a Vercel KV legacy — the values point at Upstash
 
 ## Notes (`/notes`)
 
-| Key                        | Type   | TTL  | Description                                                                |
-| -------------------------- | ------ | ---- | -------------------------------------------------------------------------- |
-| `note:{id}`                | JSON   | none | `{ id, content, author, createdAt, editedAt?, originalContent?, pinned? }` |
-| `notes:index`              | ZSET   | none | All note IDs scored by `createdAt`                                         |
-| `notes:count:{author}`     | INT    | none | Per-author note count                                                      |
-| `notes:counts:initialized` | STRING | none | Migration sentinel — set after back-fill                                   |
-| `notes:pinned`             | SET    | none | Pinned note IDs                                                            |
-| `our-space-notes`          | LIST   | none | **Legacy** — drained on first read                                         |
-| `reactions:{noteId}`       | HASH   | none | `{ T7SEN: 'emojiLabel', Besho: 'emojiLabel' }`                             |
+| Key                        | Type   | TTL  | Description                                                                                |
+| -------------------------- | ------ | ---- | ------------------------------------------------------------------------------------------ |
+| `note:{id}`                | JSON   | none | `{ id, content, author, createdAt, editedAt?, originalContent?, pinned?, pinnedAt? }`       |
+| `notes:index`              | ZSET   | none | All note IDs scored by `createdAt`                                                         |
+| `notes:count:{author}`     | INT    | none | Per-author note count                                                                      |
+| `notes:counts:initialized` | STRING | none | Migration sentinel — set after back-fill                                                   |
+| `notes:pinned`             | SET    | none | Pinned note IDs (maintained for cleanup; `note.pinned`/`note.pinnedAt` are read-of-truth)  |
+| `our-space-notes`          | LIST   | none | **Legacy** — drained on first read                                                         |
+| `reactions:{noteId}`       | HASH   | none | `{ T7SEN: 'emojiLabel', Besho: 'emojiLabel' }`                                             |
+
+### Pinning
+
+- `MAX_PINS_PER_AUTHOR = 5` from `src/lib/notes-constants.ts`. Server enforces on the transition-to-pinned in `togglePinNote`: walks the index, counts the caller's currently-pinned notes via `mget`, refuses with `"You can pin up to 5 notes. Unpin one first."` if at cap.
+- `pinnedAt` is set on pin and ignored when `pinned=false`. Used client-side for ordering within an author's pin group (newest pin first); falls back to `createdAt` for legacy records that pre-date the field.
+- Render order on the client: T7SEN-pinned (newest pin first) → Besho-pinned (newest first) → unpinned (existing reverse-chronological).
 
 ### Pagination
 

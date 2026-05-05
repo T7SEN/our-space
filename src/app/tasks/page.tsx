@@ -346,14 +346,7 @@ export default function TasksPage() {
                   >
                     Details
                   </label>
-                  <motion.div
-                    ref={containerRef}
-                    animate={{
-                      paddingBottom:
-                        keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-                    }}
-                    transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                  >
+                  <div ref={containerRef}>
                     <RichTextEditor
                       id="task-desc"
                       name="description"
@@ -366,7 +359,7 @@ export default function TasksPage() {
                         "focus:border-primary/40 transition-colors",
                       )}
                     />
-                  </motion.div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

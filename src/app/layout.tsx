@@ -17,6 +17,7 @@ import { NavigationProgress } from "@/components/navigation-progress";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { GlobalLogger } from "@/components/global-logger";
 import { SentryUserProvider } from "@/components/sentry-user-provider";
+import { DeviceTracker } from "@/components/device-tracker";
 
 const sourceSans3 = Source_Sans_3({
   subsets: ["latin"],
@@ -109,6 +110,7 @@ export default function RootLayout({
                 <PushToast />
                 <FCMProvider />
                 <SentryUserProvider />
+                <DeviceTracker />
                 <FloatingNavbar />
               </BiometricGate>
             </TooltipProvider>

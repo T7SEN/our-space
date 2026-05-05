@@ -1536,14 +1536,7 @@ function RequestForm({
         New Request
       </h2>
 
-      <motion.div
-        ref={containerRef}
-        animate={{
-          paddingBottom: keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-        }}
-        transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-        className="space-y-4"
-      >
+      <div ref={containerRef} className="space-y-4">
         <div>
           <label
             htmlFor="permission-body"
@@ -1698,7 +1691,7 @@ function RequestForm({
             </select>
           </div>
         )}
-      </motion.div>
+      </div>
 
       {state?.error && (
         <p className="text-xs font-medium text-destructive">{state.error}</p>

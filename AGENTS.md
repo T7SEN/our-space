@@ -23,7 +23,7 @@ This file is the entry point — short, dense, with pointers. Detailed guidance 
 | Repository      | `github.com/t7sen/our-space`                         |
 | Production URL  | `https://t7senlovesbesho.me`                         |
 | Android package | `me.t7senlovesbesho` (do not change)                 |
-| Hosting         | Vercel (web), Capacitor APK (Android)                |
+| Hosting         | Vercel **Hobby tier** (web), Capacitor APK (Android) |
 | Architecture    | **Hosted-webapp Capacitor shell** — see Section 3.7  |
 | Package manager | `pnpm` — never npm or yarn                           |
 | Users           | Exactly two: `T7SEN` (dom), `Besho` (sub/kitten)     |
@@ -113,6 +113,10 @@ These compile and lint clean but break at runtime, in SSR, or in React 19 strict
 - **Force-logout via per-author session epoch.** `revokeAuthorSessions(author)` writes `Date.now()` to `session:epoch:{author}`. `decrypt()` reads the epoch (5s in-process cache) and rejects any JWT whose `iat` predates it. Existing JWTs without bumped epoch remain valid until first revoke. `/admin/sessions` is the UI; the action is `forceLogoutAuthor()`.
 - **`/admin` is a Sir-only sub-tree.** `src/app/admin/layout.tsx` redirects non-Sir to `/`. The floating-navbar More sheet appends an Admin entry only when `getCurrentAuthor()` resolves to T7SEN. Every admin server action duplicates the role check via `requireSir()` in `src/app/actions/admin.ts` — the layout is convenience, not the boundary.
 - **Summon mirrors safeword in reverse.** `summonKitten()` in `src/app/actions/admin.ts` is the only server action that fires Sir → Besho with the same delivery shape as safeword: `bypassPresence: true` + Android `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. Possessive/dominant copy lives in the action body, not in constants — it's a single fixed message. Surfaced via `<SummonButton>` on the `/admin` landing using the two-step heavy-haptic shape. No cooldown — Sir initiates.
+- **Per-device session tracking lives in `<DeviceTracker />`.** Mounted once in the root layout, owns every `device:*` write. On mount: device id (`@capacitor/device.getId()` native, localStorage UUID web), full info (`@capacitor/device` + `@capacitor/app`), coarse coords (native-only via `@capacitor/geolocation`). Heartbeats every 60s with the current pathname. Author claim is sticky — `pingDevice` rejects writes from the other author. The Sir-only viewer at `/admin/devices` polls every 10s; offline devices retain their last-known fingerprint + location. Don't call `pingDevice` from feature code; don't merge with `usePresence` (they're orthogonal — presence is per-author, devices are per-install).
+- **Restraint mode is the Sir-only read-only flag for Besho.** `mode:restraint:Besho` STRING; checked via `assertWriteAllowed(author)` from `@/lib/restraint` at the top of every Besho-writable server action (Sir is never restrained). The helper has a 5s in-process cache to bound the per-request Redis hit. New Besho-writable actions MUST add the guard — there is no shared middleware. Toggled from the `<RestraintToggle>` on the `/admin` landing (two-step confirm to engage; single tap to lift). Safeword is intentionally exempt and stays callable.
+- **Failed-login log is a side-channel from `login()`.** Every bad-passcode submission writes to `auth:failures` ZSET (capped at 100) with `{ ts, ip, ua, passcodeLen }` — never the passcode itself. Sir reads at `/admin/auth-log`. Successful logins still flow through `logger.interaction` and land in `/admin/activity`. Don't reuse `auth:failures` for general security events — keep it scoped to login failures.
+- **Ritual window-open FCM is cron-driven from outside Vercel.** `/api/cron/ritual-windows` walks active rituals, fires `sendNotification(owner, ..., { bypassPresence: true })` when the window-open instant is within the last 5 minutes, and dedups via `ritual:fcm:sent:{ritualId}:{owningDateKey}` (`SET NX EX 36h`). Auth: `Authorization: Bearer ${CRON_SECRET}` — endpoint refuses to run if the env var is unset. **Two triggers in parallel:** cron-job.org runs the minute cadence (primary, free tier, configured out-of-band in the operator's account), and `vercel.json`'s `* * * * *` runs as a daily fallback on Hobby (auto-upgrades to true minute cadence on Pro+). Dedup makes duplicate fires safe. Local notifications still fire on-device in parallel — different channels, no dedup needed. Don't remove either trigger.
 
 ---
 
@@ -177,9 +181,10 @@ src/
 │   ├── protocol/               # Shared protocol + version history; supports ?focus= deep links
 │   ├── rituals/                # Recurring obligations + LocalNotifications reminders
 │   ├── review/                 # Weekly retrospective — independent reflections, atomic reveal
-│   ├── admin/                  # Sir-only sub-tree (layout redirects non-Sir): trash, export, inspector, push-test, activity, sessions
+│   ├── admin/                  # Sir-only sub-tree (layout redirects non-Sir): trash, export, inspector, push-test, activity, sessions, devices, stats, health, auth-log, mood, dates
 │   ├── actions/                # Server actions ('use server')
-│   │   └── admin.ts            # Inspector, test push, activity feed reader, session epochs + force-logout, JSON export, trash list/restore/purge
+│   │   ├── admin.ts            # Inspector, test push, activity feed reader, session epochs + force-logout, JSON export, trash list/restore/purge, device list, restraint toggle, auth-log reader, dates editor, mood override, stats, health + repair, heatmap
+│   │   └── devices.ts          # pingDevice (any authenticated user, own device), forgetDevice (Sir-only)
 │   └── api/
 │       ├── presence/route.ts
 │       ├── notes/stream/       # Edge SSE
@@ -188,6 +193,7 @@ src/
 │   ├── biometric-gate.tsx
 │   ├── fcm-provider.tsx
 │   ├── sentry-user-provider.tsx
+│   ├── device-tracker.tsx       # Mount-once tracker, drives device:* writes via pingDevice
 │   ├── push-toast.tsx
 │   ├── pull-to-refresh.tsx
 │   ├── navigation-progress.tsx # Top progress bar that fires on internal link clicks
@@ -197,11 +203,11 @@ src/
 │   ├── navigation/             # top-navbar (Heart icon mobile, wordmark md:+), floating-navbar (5 primary tabs + More sheet)
 │   ├── dashboard/              # Cards: Mood, Counter (with anniversary countdown), Weather, Moon, Distance, Quote, SafeWord, Birthday, TodayStrip
 │   ├── review/                 # Form, reveal card, summary panel, history drawer (Sir-only per-week delete)
-│   ├── admin/                  # PurgeButton + SummonButton — Sir-only controls (caller gates render on isT7SEN)
+│   ├── admin/                  # PurgeButton + SummonButton + RestraintToggle — Sir-only controls (caller gates render on isT7SEN)
 │   │                           # /admin pages live under src/app/admin/, not here
 │   └── ui/                     # shadcn primitives + RichTextEditor, MarkdownRenderer, ErrorBoundary, Sheet
 ├── hooks/                      # use-presence, use-refresh-listener, use-local-notifications, use-keyboard, use-network, use-nav-badges, use-pull-to-refresh
-├── lib/                        # auth-utils (+ session-epoch revoke), cairo-time, native, haptic, keyboard, clipboard, logger, activity (Sir-only feed), trash (soft-delete helper), constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
+├── lib/                        # auth-utils (+ session-epoch revoke), cairo-time, native, haptic, keyboard, clipboard, logger, activity (Sir-only feed), trash (soft-delete helper), restraint (Besho read-only flag), device-id + device-types (DeviceTracker plumbing), constants (Author, AUTHOR_COLORS, partnerOf, TITLE_BY_AUTHOR), *-constants
 └── instrumentation.ts          # Sentry
 ```
 

@@ -1,15 +1,34 @@
 import Link from "next/link";
 import {
   Activity,
+  BarChart3,
+  CalendarHeart,
   Download,
   Eye,
+  HeartPulse,
   KeyRound,
   Send,
+  ShieldAlert,
+  Smartphone,
+  Smile,
   Trash2,
 } from "lucide-react";
 import { SummonButton } from "@/components/admin/summon-button";
+import { RestraintToggle } from "@/components/admin/restraint-toggle";
 
 const TOOLS = [
+  {
+    href: "/admin/stats",
+    title: "Stats",
+    description: "Counts, ratios, heatmap.",
+    Icon: BarChart3,
+  },
+  {
+    href: "/admin/health",
+    title: "Health & repair",
+    description: "Diagnostics + index reseed.",
+    Icon: HeartPulse,
+  },
   {
     href: "/admin/trash",
     title: "Trash & restore",
@@ -29,6 +48,12 @@ const TOOLS = [
     Icon: Eye,
   },
   {
+    href: "/admin/devices",
+    title: "Devices",
+    description: "Sessions, fingerprints, last-known location.",
+    Icon: Smartphone,
+  },
+  {
     href: "/admin/push-test",
     title: "Send test push",
     description: "Fire a custom FCM to either author.",
@@ -46,6 +71,24 @@ const TOOLS = [
     description: "Force-logout an author's devices.",
     Icon: KeyRound,
   },
+  {
+    href: "/admin/auth-log",
+    title: "Auth log",
+    description: "Failed login attempts (last 100).",
+    Icon: ShieldAlert,
+  },
+  {
+    href: "/admin/mood",
+    title: "Mood override",
+    description: "Set or clear today's mood for either author.",
+    Icon: Smile,
+  },
+  {
+    href: "/admin/dates",
+    title: "Anniversary & birthdays",
+    description: "Edit relationship start + per-author birthdays.",
+    Icon: CalendarHeart,
+  },
 ] as const;
 
 export default function AdminLandingPage() {
@@ -58,6 +101,7 @@ export default function AdminLandingPage() {
         </p>
       </header>
 
+      <RestraintToggle />
       <SummonButton />
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-6">

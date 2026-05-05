@@ -313,14 +313,7 @@ export default function LedgerPage() {
                   >
                     Details
                   </label>
-                  <motion.div
-                    ref={containerRef}
-                    animate={{
-                      paddingBottom:
-                        keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-                    }}
-                    transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                  >
+                  <div ref={containerRef}>
                     <RichTextEditor
                       id="ledger-desc"
                       name="description"
@@ -333,7 +326,7 @@ export default function LedgerPage() {
                         "focus:border-primary/40 transition-colors",
                       )}
                     />
-                  </motion.div>
+                  </div>
                 </div>
 
                 {/* Timestamp */}

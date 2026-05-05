@@ -2,6 +2,15 @@
 
 Reference for Vercel (web) and Android (Capacitor) deployment pipelines, environment variables, secrets, and verification.
 
+> **Tier: Vercel Hobby.** Notable consequences:
+>
+> - **Vercel Cron runs once per day max.** The `* * * * *` schedule in `vercel.json` is honored as daily, not minute-cadence. **Cron-job.org is the primary minute-cadence trigger** (see below); `vercel.json` stays as a redundant daily fallback (harmless because all cron endpoints dedup).
+> - 12 serverless functions max (we're well under).
+> - 100 GB bandwidth / month (a 2-user app is nowhere near).
+> - No team members on the project.
+>
+> Mention this any time you propose new cron / scheduled work — Vercel Cron is the daily fallback, cron-job.org is the minute-cadence primary.
+
 ## Topology
 
 ```
@@ -36,6 +45,29 @@ pnpm build
 
 If you ever see `Lockfile not found` in build logs, `pnpm-lock.yaml` is gitignored or missing — fix it.
 
+### Cron triggers
+
+Two parallel triggers hit `/api/cron/ritual-windows`. Both authenticate via `Authorization: Bearer ${CRON_SECRET}` — the endpoint refuses any request without it. The endpoint dedups via `ritual:fcm:sent:{ritualId}:{owningDateKey}` (36h TTL, atomic `SET NX`), so simultaneous fires from both triggers never produce duplicate FCMs.
+
+**Primary: cron-job.org — minute-cadence.**
+
+- Vendor-managed cron, free tier, 1-minute cadence honored.
+- Configured in the cron-job.org dashboard:
+  - URL: `https://t7senlovesbesho.me/api/cron/ritual-windows`
+  - Method: `GET`
+  - Schedule: `* * * * *` (every minute)
+  - Headers: `Authorization: Bearer <CRON_SECRET>` (matches Vercel env var)
+  - Notify on failure: ON, to the operator's email
+  - Save responses: ON (response is tiny JSON `{ok, scanned, fired, dedupHits, durationMs}` and very useful in history view)
+- The cron-job.org account is single-tenant (operator's own), not in the repo. Treat it as out-of-band infra. If access is lost or the account is suspended, the endpoint and dedup logic are unaffected — re-create the cron entry pointing at the same URL.
+
+**Fallback: Vercel Cron — daily (Hobby tier).**
+
+- `vercel.json` declares the same `/api/cron/ritual-windows` at `* * * * *`, but Hobby runs it once per day max.
+- Kept as redundancy: if cron-job.org is down for a day, the daily Vercel tick still catches the windows that opened in the trailing 5 minutes (so it'll only catch ~5 minutes of windows per day — not great, but better than nothing during an outage).
+- Auto-upgrades to true minute cadence the moment the Vercel project moves to Pro+; no code change needed.
+- Don't remove `vercel.json` — keep both triggers wired.
+
 ### Required environment variables
 
 All set in **Vercel → Project → Settings → Environment Variables**. Production environment.
@@ -49,6 +81,7 @@ All set in **Vercel → Project → Settings → Environment Variables**. Produc
 | `FIREBASE_CLIENT_EMAIL` | Service account email                             |
 | `FIREBASE_PRIVATE_KEY`  | Service account private key with **literal `\n`** |
 | `SENTRY_AUTH_TOKEN`     | For source-map upload at build time               |
+| `CRON_SECRET`           | Bearer token for Vercel Cron auth — required for `/api/cron/*` to run; Vercel injects it into the cron request as `Authorization: Bearer ...` |
 
 > **Removed:** `VAPID_EMAIL`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` are no longer used. Web Push was removed when PWA was dropped. If your Vercel project still has these set, delete them — they're dead config.
 
@@ -227,6 +260,14 @@ Run this after every non-trivial deploy:
 - [ ] Soft-delete: delete a throwaway note → confirm it appears in `/admin/trash` → restore → it's back at its original list position
 - [ ] `/admin/sessions` "Force logout" on Besho invalidates her active session within 5 seconds (kitten device redirects to login on next nav)
 - [ ] `/admin` "Summon kitten" two-step button delivers a max-priority FCM to Besho's device (bypasses presence; Android opens with sound + heads-up regardless of foreground state)
+- [ ] `/admin/devices` lists T7SEN's APK as online with a populated fingerprint (manufacturer · model · Android version · app version) and coarse coords; backgrounding the app for 90s flips it to offline while preserving the last-known state
+- [ ] Restraint toggle on `/admin` engages with two-step confirm; while on, Besho's note submission returns `"Sir put you on restraint."` and safeword still works
+- [ ] Wrong passcode at `/login` lands a record in `/admin/auth-log` within seconds (records IP + UA, never the passcode)
+- [ ] `/admin/stats` renders all sections without 5xx; numbers update after a fresh note / task / ledger entry
+- [ ] `/admin/health` shows Redis OK + both FCM tokens registered; Reseed indexes button corrects a deliberately-mis-set `notes:count:*`
+- [ ] `/admin/dates` round-trips a date edit and the dashboard CounterCard reflects the change after refresh
+- [ ] `/admin/mood` overrides write `mood:{today}:{author}` AND `state:{today}:{author}` (per-author state options) and the home Mood card picks up both changes
+- [ ] Create a ritual with a `windowStart` 1–2 minutes in the future; the owner receives an FCM at the window-open instant (delivered by the `ritual-windows` cron, in addition to the local notification)
 
 ---
 

@@ -264,7 +264,7 @@ export function CounterCard() {
           </h2>
         </div>
 
-        <div className="flex h-24 items-end justify-between gap-4 md:h-32">
+        <div className="flex flex-col gap-3 md:h-32 md:flex-row md:items-end md:justify-between md:gap-4">
           <div className="flex min-w-0 items-baseline gap-4">
             <AnimatePresence mode="popLayout">
               <motion.span
@@ -298,7 +298,7 @@ export function CounterCard() {
 
           {anniversary && (
             <div
-              className="flex shrink-0 flex-col items-end pb-2 text-right"
+              className="flex flex-col items-end text-right md:shrink-0 md:pb-2"
               aria-label={
                 isAnniversaryToday
                   ? `${anniversary.label} is today`

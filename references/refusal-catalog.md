@@ -29,6 +29,11 @@ The full table of request patterns that should be refused immediately with a one
 | Call `recordActivity` directly from feature code                         | Activity feed is a logger side-channel; direct calls would double-write or skip the cap | Use `logger.interaction` / `warn` / `error` / `fatal` — they drive it    |
 | Expose `/admin` routes or admin actions to non-Sir                       | Admin tooling is destructive; client is adversarial                              | Both layout-redirect AND `requireSir()` per action — keep both, never just one |
 | Restore a trash entry to a feature's create-action path                  | Re-firing the create action triggers notifications, audit writes, validation     | Use `restoreFromTrash` — sets the record JSON + index ZSET entry directly, no side effects |
+| Skip `assertWriteAllowed` on a new Besho-writable action "for performance"          | The per-action guard IS the model — middleware was rejected on purpose          | Add the guard; the helper has a 5s cache so the steady-state cost is negligible           |
+| Centralize the restraint check into a single wrapper / decorator                    | Implicit gating hides the security boundary; explicit per-action is by design   | Refuse; keep it explicit                                                                    |
+| Log the submitted passcode in `auth:failures` for "easier debugging"                | Export dumps every key; passcode would leak the moment the snapshot is shared   | Keep `passcodeLen` only                                                                     |
+| Reuse `auth:failures` for general security events (e.g. CSRF, rate-limit hits)      | Mixed semantics; UI assumes the field shape is login-specific                    | New ZSET per event class                                                                    |
+| Restraint should also block safeword                                                | Safeword is the user's safety lever; it must remain callable regardless of mode | Refuse; keep safeword exempt                                                                |
 
 ---
 

@@ -9,6 +9,7 @@ import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { startOfCairoMonthMs } from "@/lib/cairo-time";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 import {
   PERMISSION_CATEGORIES,
   type PermissionCategory,
@@ -502,6 +503,9 @@ export async function createPermission(
   if (session.author !== "Besho")
     return { error: "Only kitten can submit permission requests." };
 
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
+
   const body = (formData.get("body") as string)?.trim();
   const categoryRaw = (formData.get("category") as string)?.trim();
   const expiresAtRaw = (formData.get("expiresAt") as string)?.trim();
@@ -975,6 +979,9 @@ export async function withdrawPermission(
   if (!session?.author) return { error: "Not authenticated." };
   if (session.author !== "Besho")
     return { error: "Only kitten can withdraw her own requests." };
+
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
 
   try {
     const existing = await redis.get<PermissionRequest>(permissionKey(id));

@@ -8,6 +8,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 import {
   HISTORY_DOT_ROW_DAYS,
   MAX_EVERY_N_DAYS,
@@ -561,6 +562,9 @@ export async function submitOccurrence(
 ): Promise<{ success?: boolean; error?: string }> {
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
 
   const ritualId = formData.get("ritualId") as string;
   const text = ((formData.get("text") as string) ?? "").trim();

@@ -752,13 +752,7 @@ function EditForm({
           Edit Protocol
         </h2>
 
-        <motion.div
-          ref={keyboardContainerRef}
-          animate={{
-            paddingBottom: keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-          }}
-          transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-        >
+        <div ref={keyboardContainerRef}>
           <RichTextEditor
             id="protocol-content"
             name="content"
@@ -773,7 +767,7 @@ function EditForm({
               "font-mono leading-relaxed",
             )}
           />
-        </motion.div>
+        </div>
 
         {state?.error && (
           <p className="text-xs font-medium text-destructive">{state.error}</p>

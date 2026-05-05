@@ -286,6 +286,73 @@ For features with composite IDs, the `TrashEntry.id` joins parts with `:` (e.g. 
 
 `decrypt()` reads this on every JWT verify (5-second in-process cache per process). If JWT `iat * 1000 < epoch` → reject. Bumped via `revokeAuthorSessions(author)` which writes `Date.now()`. Existing JWTs without bumped epoch remain valid.
 
+### Restraint mode (Besho read-only flag)
+
+| Key                    | Type   | Description                                                  |
+| ---------------------- | ------ | ------------------------------------------------------------ |
+| `mode:restraint:Besho` | STRING | Present (`"on"`) when Besho is on read-only restraint. Absent otherwise. |
+
+Read via `assertWriteAllowed(author)` in `src/lib/restraint.ts` (5s in-process cache). Sir is never restrained — the helper short-circuits before the Redis read for `T7SEN`. Safeword is intentionally exempt and stays callable. Toggled from `setRestraintState(on)` (Sir-only) in `src/app/actions/admin.ts`.
+
+**Per-action guard pattern** (every Besho-writable action):
+
+```ts
+const block = await assertWriteAllowed(author)
+if (block) return block
+```
+
+There is no shared middleware. New Besho-writable actions must add the guard explicitly. The covered set today: `mood.submitMood/submitState/sendHug`, `notes.saveNote/editNote/togglePinNote`, `reactions.reactToNote`, `tasks.submitTask`, `rules.acknowledgeRule`, `permissions.createPermission/withdrawPermission`, `rituals.submitOccurrence`, `reviews.submitReview`.
+
+### Failed login log
+
+| Key             | Type | Cap | Description                                                            |
+| --------------- | ---- | --- | ---------------------------------------------------------------------- |
+| `auth:failures` | ZSET | 100 | Score = `Date.now()`, member = JSON `AuthFailureRecord` (no passcode!) |
+
+`AuthFailureRecord = { ts: number, ip: string \| null, ua: string \| null, passcodeLen: number }`. Written exclusively from `login()` in `src/app/actions/auth.ts` on bad-passcode paths. Trimmed via `zremrangebyrank("auth:failures", 0, -101)` after each write. **Never write the submitted passcode** — only its length, useful for distinguishing fat-finger from bot probing. Read via `getAuthFailures()` (Sir-only); cleared via `clearAuthFailures()` (Sir-only).
+
+### Ritual window-open dedup
+
+| Key                                          | Type   | TTL  | Description                                                            |
+| -------------------------------------------- | ------ | ---- | ---------------------------------------------------------------------- |
+| `ritual:fcm:sent:{ritualId}:{owningDateKey}` | STRING | 36h  | Set with `SET NX` by the cron when the FCM has fired for this window   |
+
+Written exclusively from `src/app/api/cron/ritual-windows/route.ts`. The endpoint is hit by two triggers in parallel: cron-job.org (minute cadence, primary) and Vercel Cron (daily on Hobby, fallback). The atomic `NX` set is what prevents duplicate fires across overlapping ticks from either source. 36h TTL is comfortably longer than any realistic ritual window. If a tick fails after claiming the dedup key, that window won't retry — accept "no notification" over "two notifications".
+
+### Devices (per-device session tracking)
+
+| Key                        | Type   | Description                                                                            |
+| -------------------------- | ------ | -------------------------------------------------------------------------------------- |
+| `device:{deviceId}`        | STRING | JSON `DeviceRecord` — fingerprint, platform, model, OS, app version, last seen / page / location |
+| `device:list:{author}`     | ZSET   | Per-author registry, score = `lastSeenAt`, member = `deviceId`                          |
+
+`DeviceRecord` shape (from `src/lib/device-types.ts`):
+
+```ts
+interface DeviceRecord {
+  id: string                   // "native:<Capacitor identifier>" or "web:<uuid>"
+  author: Author               // owner (sticky — first author to ping wins)
+  platform: "android" | "ios" | "web" | "unknown"
+  manufacturer?: string
+  model?: string
+  osVersion?: string
+  appVersion?: string
+  fingerprint: string          // human-readable label, built once on first ping
+  firstSeenAt: number          // ms
+  lastSeenAt: number           // ms — driven by tracker heartbeat
+  lastPage?: string            // most recent pathname seen by the tracker
+  lastLat?: number             // native-only (no web prompt)
+  lastLng?: number
+  lastLocationAt?: number
+}
+```
+
+**Writers:** `pingDevice` in `src/app/actions/devices.ts` is the only writer — called from `<DeviceTracker />` mounted once in the root layout. Initial mount sends full info + native coords; heartbeat (60s) sends just `id` + `page`. The action is idempotent: if a record exists for the id, fields are merged, `lastSeenAt` bumped, and the per-author ZSET re-scored.
+
+**Author claim is sticky.** If a device id has already been seen under one author, `pingDevice` from another author refuses with `"Device claimed by another author."` This prevents account swap on a shared device from polluting the other author's list. `forgetDevice` (Sir-only) clears the claim.
+
+**Online threshold:** `DEVICE_FRESH_MS = 90_000` (one missed heartbeat of grace beyond the 60s tick). The admin UI surfaces this as the `online` / `offline` chip on each row.
+
 ---
 
 ## Migration Sentinels
@@ -312,6 +379,10 @@ Add a sentinel for any back-fill. Idempotency matters because every cold-start c
 - **Hard-deleting via `del` from a `delete*` / `purgeAll*` action.** All destructive actions go through `moveToTrash` / `moveManyToTrash` first. Skipping the trash step for "performance" defeats the recovery window. If you want a non-recoverable purge, use `deleteTrashEntryAction` / `purgeTrashAction` from `/admin/trash` after the trash window has populated.
 - **Re-implementing `decrypt` without the epoch check.** Single source of truth lives in `src/lib/auth-utils.ts`. Do not bypass it via raw `jwtVerify` — force-logout depends on the read.
 - **Calling `recordActivity` from feature code.** It's a logger side-channel; let `logger.interaction` / `warn` / `error` / `fatal` drive it. Direct calls would double-write or skip the cap.
+- **Calling `pingDevice` from feature code.** The `<DeviceTracker />` mounted in the root layout owns every write to `device:*`. Feature components don't ping. If a feature thinks it needs to update last-seen state, the answer is presence (`presence:{author}`), not the device record.
+- **Skipping `assertWriteAllowed` on a new Besho-writable action.** Every Besho-write entry point checks restraint. There is no middleware; the guard is per-action by design. Skipping it gives Besho a back-door around the lock.
+- **Logging the submitted passcode in `auth:failures`.** The record stores `passcodeLen` only. Even on a 2-user app with fixed passcodes, never write the value — the export tool dumps every key.
+- **Re-reading `mode:restraint:Besho` directly inside an action.** Use `assertWriteAllowed`; it caches and centralizes the rule (e.g., Sir always passes).
 
 ---
 
@@ -334,4 +405,10 @@ Add a sentinel for any back-fill. Idempotency matters because every cold-start c
 - `src/lib/trash.ts` — soft-delete helper (`moveToTrash`, `moveManyToTrash`, `restoreFromTrash`, `listTrash`, `purgeTrash`, `TRASH_FEATURE_LABELS`)
 - `src/lib/activity.ts` — `recordActivity` (driven by logger), `getActivity`, `clearActivity`
 - `src/lib/auth-utils.ts` — `revokeAuthorSessions`, `readAllSessionEpochs`, in-process epoch cache (5s TTL)
-- `src/app/actions/admin.ts` — every Sir-only admin surface call (inspector, push test, sessions, export, trash list/restore/purge, activity feed)
+- `src/app/actions/admin.ts` — every Sir-only admin surface call (inspector, push test, sessions, export, trash list/restore/purge, activity feed, device list)
+- `src/app/actions/devices.ts` — `pingDevice` (any authenticated user, own device only), `forgetDevice` (Sir-only)
+- `src/lib/device-types.ts` — `DeviceRecord`, `PingDeviceInput`, `DEVICE_FRESH_MS`
+- `src/lib/device-id.ts` — `getOrCreateDeviceId`, `buildFingerprint`
+- `src/components/device-tracker.tsx` — mounted once in `src/app/layout.tsx` after `BiometricGate`
+- `src/lib/restraint.ts` — `assertWriteAllowed`, `isRestrained`, `setRestraintRaw`, `readRestraintRaw`
+- `src/app/actions/admin.ts` — `getStats`, `getHealthSnapshot`, `repairIndexes`, `getActivityHeatmap`, `adminSetMoodForAuthor`, `adminClearMoodForAuthor`, `getRelationshipDates`, `setRelationshipDates`, `getAuthFailures`, `clearAuthFailures`, `getRestraintState`, `setRestraintState`

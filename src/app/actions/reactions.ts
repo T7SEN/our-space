@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { decrypt } from "@/lib/auth-utils";
 import { type ReactionEmoji } from "@/lib/reaction-constants";
 import { logger } from "@/lib/logger";
+import { assertWriteAllowed } from "@/lib/restraint";
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL!,
@@ -34,6 +35,9 @@ export async function reactToNote(
 ): Promise<{ reactions: Record<string, string>; error?: string }> {
   const author = await getSessionAuthor();
   if (!author) return { reactions: {}, error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(author);
+  if (block) return { reactions: {}, error: block.error };
 
   const key = reactionsKey(noteId);
 

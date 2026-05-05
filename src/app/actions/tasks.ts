@@ -7,6 +7,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "pending" | "in_review" | "completed";
@@ -124,6 +125,9 @@ export async function submitTask(
 ): Promise<{ success?: boolean; error?: string }> {
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
 
   try {
     const existing = await redis.get<Task>(taskKey(id));

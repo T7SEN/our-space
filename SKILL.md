@@ -54,6 +54,10 @@ Apply without prompting. Full examples in `references/coding-patterns.md`.
 - Activity feed is logger-driven. `logger.interaction` / `warn` / `error` / `fatal` automatically write to the `activity:log` ZSET (capped at 500). Don't call `recordActivity` directly; let the logger do it. Sir reads at `/admin/activity`.
 - Force-logout = bump `session:epoch:{author}`. `decrypt()` checks JWT `iat` against the epoch (5s in-process cache). All admin destructive actions go through the inspector / push-test / sessions / export / trash / activity surfaces under `/admin`, gated by `src/app/admin/layout.tsx` redirect + `requireSir()` in `src/app/actions/admin.ts`.
 - `summonKitten()` is the only Sir → Besho push that mirrors safeword's bypass: `bypassPresence: true` + `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. Possessive/dominant copy is fixed in-action. Surfaced as `<SummonButton>` on the `/admin` landing.
+- `<DeviceTracker />` (root-layout-mounted) is the sole writer of `device:*`. `pingDevice` runs on mount + 60s heartbeat. Author claim is sticky. Sir reads at `/admin/devices`. Don't call `pingDevice` from feature code; don't conflate with `usePresence`.
+- Restraint mode = `mode:restraint:Besho`. Every Besho-writable server action MUST call `assertWriteAllowed(session.author)` from `@/lib/restraint` and return its error if non-null. Sir is never restrained. Safeword is intentionally exempt. Toggled from `<RestraintToggle>` on `/admin` landing.
+- `auth:failures` is the failed-login ZSET (capped 100). Written exclusively from `login()` in `actions/auth.ts`; read via `getAuthFailures()` (Sir-only). Don't reuse for unrelated security events.
+- **Project is on Vercel Hobby.** Vercel Cron runs once per day max — `vercel.json` is the daily fallback. **Minute-cadence trigger is cron-job.org**, configured out-of-band in the operator's account (not in the repo). Both fire `/api/cron/ritual-windows`; dedup makes that safe. New cron-style features should ride the same `/api/cron/*` pattern with bearer auth and ZSET-based dedup.
 
 ---
 

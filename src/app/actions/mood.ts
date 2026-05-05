@@ -7,6 +7,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { addDaysCairo, todayKeyCairo } from "@/lib/cairo-time";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
+import { assertWriteAllowed } from "@/lib/restraint";
 
 export interface MoodData {
   myMood: string | null;
@@ -102,6 +103,9 @@ export async function submitMood(
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
 
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
+
   const trimmed = mood?.trim();
   if (!trimmed) return { error: "Mood is required." };
 
@@ -129,6 +133,9 @@ export async function submitState(
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
 
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
+
   const trimmed = value?.trim();
   if (!trimmed) return { error: "State is required." };
 
@@ -152,6 +159,9 @@ export async function sendHug(): Promise<{
 }> {
   const session = await getSession();
   if (!session?.author) return { error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
 
   try {
     const author = session.author as "T7SEN" | "Besho";

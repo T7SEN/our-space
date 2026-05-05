@@ -1,9 +1,55 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { Redis } from "@upstash/redis";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { encrypt, decrypt } from "@/lib/auth-utils";
 import { logger } from "@/lib/logger";
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+});
+
+const AUTH_FAILURES_KEY = "auth:failures";
+const AUTH_FAILURES_CAP = 100;
+
+export interface AuthFailureRecord {
+  ts: number;
+  ip: string | null;
+  ua: string | null;
+  /** Length of the submitted passcode — useful to distinguish
+   *  fat-finger attempts from bot probing. Never the value itself. */
+  passcodeLen: number;
+}
+
+async function recordAuthFailure(passcodeLen: number): Promise<void> {
+  try {
+    const headersList = await headers();
+    const ip =
+      headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      headersList.get("x-real-ip")?.trim() ??
+      null;
+    const ua = headersList.get("user-agent")?.slice(0, 200) ?? null;
+    const record: AuthFailureRecord = {
+      ts: Date.now(),
+      ip,
+      ua,
+      passcodeLen,
+    };
+    await redis
+      .pipeline()
+      .zadd(AUTH_FAILURES_KEY, {
+        score: record.ts,
+        member: JSON.stringify(record),
+      })
+      .zremrangebyrank(AUTH_FAILURES_KEY, 0, -AUTH_FAILURES_CAP - 1)
+      .exec();
+  } catch (err) {
+    // Failure logging is best-effort — never block the login response.
+    logger.warn("[auth] failed to record auth failure", { err: String(err) });
+  }
+}
 
 export async function getCurrentAuthor(): Promise<"T7SEN" | "Besho" | null> {
   const cookieStore = await cookies();
@@ -15,6 +61,7 @@ export async function getCurrentAuthor(): Promise<"T7SEN" | "Besho" | null> {
 
 export async function login(prevState: unknown, formData: FormData) {
   const passcode = formData.get("passcode");
+  const passcodeLen = typeof passcode === "string" ? passcode.length : 0;
 
   let author: "T7SEN" | "Besho" | null = null;
 
@@ -26,6 +73,7 @@ export async function login(prevState: unknown, formData: FormData) {
 
   if (!author) {
     logger.warn("[auth] Failed login attempt");
+    await recordAuthFailure(passcodeLen);
     return { error: "Incorrect passcode. Please try again." };
   }
 

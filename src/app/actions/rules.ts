@@ -8,6 +8,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 
 export type RuleStatus = "pending" | "active" | "completed";
 
@@ -110,6 +111,9 @@ export async function acknowledgeRule(
   if (!session?.author) return { error: "Not authenticated." };
   if (session.author !== "Besho")
     return { error: "Only kitten can acknowledge rules." };
+
+  const block = await assertWriteAllowed(session.author);
+  if (block) return block;
 
   try {
     const existing = await redis.get<Rule>(ruleKey(id));

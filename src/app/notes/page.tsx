@@ -672,13 +672,7 @@ export default function NotesPage() {
           onSubmit={handleFormSubmit}
           className="overflow-hidden rounded-3xl border border-white/5 bg-card/40 p-2 backdrop-blur-xl shadow-2xl shadow-black/40 transition-all focus-within:border-primary/30 focus-within:bg-card/60"
         >
-          <motion.div
-            ref={containerRef}
-            animate={{
-              paddingBottom: keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-            }}
-            transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-          >
+          <div ref={containerRef}>
             <RichTextEditor
               ref={composeRef}
               name="content"
@@ -703,7 +697,7 @@ export default function NotesPage() {
                 "font-serif leading-relaxed placeholder:text-muted-foreground/50",
               )}
             />
-          </motion.div>
+          </div>
 
           <div className="flex items-center justify-between border-t border-border/40 px-4 py-3">
             {currentAuthor ? (
@@ -1350,13 +1344,7 @@ function NoteItem({
               transition={{ duration: 0.12 }}
               className="space-y-3"
             >
-              <motion.div
-                ref={containerRef}
-                animate={{
-                  paddingBottom: keyboardHeight > 0 ? keyboardHeight + 16 : 0,
-                }}
-                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              >
+              <div ref={containerRef}>
                 <RichTextEditor
                   ref={textareaRef}
                   value={editContent}
@@ -1382,7 +1370,7 @@ function NoteItem({
                     "transition-colors focus:border-primary/50",
                   )}
                 />
-              </motion.div>
+              </div>
               <div className="flex items-center justify-between">
                 <span
                   className={cn(

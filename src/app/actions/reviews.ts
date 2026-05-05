@@ -8,6 +8,7 @@ import { decrypt } from "@/lib/auth-utils";
 import { sendNotification } from "@/app/actions/notifications";
 import { logger } from "@/lib/logger";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 import type { SafeWordEvent } from "@/app/actions/safeword";
 import {
   HISTORY_PAGE_SIZE,
@@ -78,6 +79,9 @@ export async function submitReview(
   if (!isAuthor(session?.author)) return { error: "Not authenticated." };
   const author = session.author;
   const partner = partnerOf(author);
+
+  const block = await assertWriteAllowed(author);
+  if (block) return block;
 
   // Fields. Server is the only authority on weekDate — ignore any
   // client-supplied value.

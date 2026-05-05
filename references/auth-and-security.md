@@ -56,6 +56,12 @@ Six surfaces under `/admin`:
 | `/admin/push-test`  | Send custom FCM (bypasses presence)  | `sendTestPushAction` (form-bound via `useActionState`)                  |
 | `/admin/activity`   | Last 500 logged events               | `getActivityFeed`, `clearActivityFeed`                                  |
 | `/admin/sessions`   | Per-author force-logout              | `getSessionEpochs`, `forceLogoutAuthor`                                 |
+| `/admin/devices`    | Per-device fingerprint / location / online state | `listDevices`, `forgetDevice`                                            |
+| `/admin/stats`      | Counts, ratios, 30-day heatmap                   | `getStats`, `getActivityHeatmap`                                          |
+| `/admin/health`     | Diagnostics + index reseed                       | `getHealthSnapshot`, `repairIndexes`                                     |
+| `/admin/auth-log`   | Failed-login attempts                            | `getAuthFailures`, `clearAuthFailures`                                   |
+| `/admin/mood`       | Sir-only mood + state override                   | `adminSetMoodForAuthor`, `adminClearMoodForAuthor`, `adminSetStateForAuthor`, `adminClearStateForAuthor` |
+| `/admin/dates`      | Anniversary + per-author birthday editor         | `getRelationshipDates`, `setRelationshipDates`                            |
 
 The landing page itself (`/admin`) hosts a single action button — `<SummonButton>` — which calls `summonKitten()`. This is the sole Sir → Besho push that mirrors the safeword delivery shape: `bypassPresence: true` + Android `channelId: "safeword"` + `priority: "max"` + `sound: "default"`. The message is intentionally possessive and dominant; it is not configurable from the UI and lives directly in the action body. No cooldown — the two-step confirm is the only guard against an accidental tap.
 
@@ -68,6 +74,42 @@ Every `delete*` and `purgeAll*` server action across the app calls `moveToTrash`
 ### Activity feed is a logger side-channel
 
 `logger.interaction` / `warn` / `error` / `fatal` automatically write the message + context to `activity:log` (Redis ZSET, capped at 500). Feature code does not call `recordActivity` directly. The Sir-only viewer at `/admin/activity` polls every 10 seconds.
+
+### Per-device session tracking
+
+`<DeviceTracker />` (mounted once in the root layout, after `BiometricGate`) is the sole writer of the `device:*` namespace. On mount it captures the device id (`@capacitor/device.getId()` on native, localStorage UUID on web), full info (`@capacitor/device.getInfo()` + `@capacitor/app.getInfo()`), and — native-only — coarse coordinates from `@capacitor/geolocation`. A 60-second heartbeat keeps `lastSeenAt` and `lastPage` fresh.
+
+The Sir-only viewer at `/admin/devices` polls every 10s. Each row shows fingerprint, online state (lastSeenAt within 90s), last page, last-known location with an OpenStreetMap link, and a Sir-only "Forget" button (two-step confirm). Devices the user simply stops opening will go offline but retain their full last-known fingerprint + location.
+
+Sticky author claim: once a device has pinged under one author, `pingDevice` rejects writes from the other author. `forgetDevice` clears the claim.
+
+### Restraint mode (Besho read-only)
+
+`mode:restraint:Besho` is a single-key flag. When `"on"`, every Besho-writable server action returns `"Sir put you on restraint."` instead of mutating. Sir is never restrained. Safeword is intentionally exempt — it stays callable so Besho can't be locked out of the safety mechanism by an unintended toggle.
+
+**Per-action guard:**
+
+```ts
+import { assertWriteAllowed } from "@/lib/restraint"
+
+export async function someBeshoWritableAction(...) {
+  const session = await getSession()
+  if (!session?.author) return { error: "Not authenticated." }
+
+  const block = await assertWriteAllowed(session.author)
+  if (block) return block
+
+  // ... mutation
+}
+```
+
+Read by `assertWriteAllowed` with a 5-second in-process cache. Toggled by `setRestraintState(on)` (Sir-only) in `src/app/actions/admin.ts`. UI lives in `<RestraintToggle>` on the `/admin` landing — two-step confirm to engage, single tap to lift.
+
+There is intentionally no shared middleware: every new Besho-writable action must add the guard explicitly. Forgetting it gives Besho a back-door around the lock — refuse to merge actions that omit it without a clear reason.
+
+### Failed-login log
+
+`login()` writes to `auth:failures` (ZSET, capped at 100) on every bad-passcode submission. The record is `{ ts, ip, ua, passcodeLen }` — **never the submitted passcode**. Cleared on Sir's request via `clearAuthFailures()`. Successful logins still flow through `logger.interaction("[auth] User logged in")` into the activity feed.
 
 ---
 

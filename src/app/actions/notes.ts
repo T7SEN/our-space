@@ -13,6 +13,7 @@ import { sendNotification } from "@/app/actions/notifications";
 import { getReactionsForNotes } from "@/app/actions/reactions";
 import { logger } from "@/lib/logger";
 import { moveToTrash, moveManyToTrash } from "@/lib/trash";
+import { assertWriteAllowed } from "@/lib/restraint";
 
 export interface Note {
   id: string;
@@ -198,9 +199,15 @@ export async function getNoteCountByAuthor(): Promise<{
 
 // ─── saveNote ─────────────────────────────────────────────────────────────────
 
-export async function saveNote(prevState: unknown, formData: FormData) {
+export async function saveNote(
+  prevState: unknown,
+  formData: FormData,
+): Promise<{ success?: boolean; error?: string }> {
   const author = await getSessionAuthor();
   if (!author) return { error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(author);
+  if (block) return block;
 
   const content = formData.get("content") as string;
 
@@ -252,6 +259,9 @@ export async function editNote(
   const author = await getSessionAuthor();
   if (!author) return { error: "Not authenticated." };
 
+  const block = await assertWriteAllowed(author);
+  if (block) return block;
+
   if (!newContent || newContent.trim() === "") {
     return { error: "Note cannot be empty." };
   }
@@ -290,6 +300,9 @@ export async function togglePinNote(
 ): Promise<{ pinned?: boolean; error?: string }> {
   const author = await getSessionAuthor();
   if (!author) return { error: "Not authenticated." };
+
+  const block = await assertWriteAllowed(author);
+  if (block) return block;
 
   try {
     const existing = await redis.get<Note>(noteKey(id));
